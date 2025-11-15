@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, MapPin, Clock, DollarSign, Star, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { generateMapsSearchUrl } from '@/lib/mapsUtils';
 
 interface Activity {
   id: string;
@@ -245,8 +246,9 @@ export const NearbyActivities = () => {
                   size="sm"
                   className="w-full"
                   onClick={() => {
+                    const searchTerm = activity.name || activity.category || 'location';
                     window.open(
-                      `https://www.google.com/maps/search/?api=1&query=${activity.lat},${activity.lng}`,
+                      generateMapsSearchUrl(searchTerm, activity.lat, activity.lng),
                       '_blank'
                     );
                   }}
