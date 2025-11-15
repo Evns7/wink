@@ -204,7 +204,8 @@ serve(async (req) => {
 
       return {
         ...activity,
-        match_score: Math.round(totalScore),
+        matchScore: Math.round(totalScore),
+        match_score: Math.round(totalScore), // Keep for backwards compatibility
         total_score: Math.round(totalScore),
         distance: activity.distance_km,
         score_breakdown: {
