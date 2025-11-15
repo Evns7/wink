@@ -25,7 +25,7 @@ export const FriendsList = () => {
 
     console.log('Fetching friends for user:', user.id);
 
-    // Get accepted friendships
+    // Get accepted friendships with auth.users data
     const { data: friendships, error: friendsError } = await supabase
       .from('friendships')
       .select('*')
@@ -34,11 +34,28 @@ export const FriendsList = () => {
 
     if (friendsError) {
       console.error('Error fetching friends:', friendsError);
-    } else {
-      console.log('Found friends:', friendships);
+      setFriends([]);
+      return;
     }
 
-    setFriends(friendships || []);
+    // Fetch friend emails from auth.users
+    const friendsWithEmails = await Promise.all(
+      (friendships || []).map(async (friendship) => {
+        const friendId = friendship.user_id === user.id ? friendship.friend_id : friendship.user_id;
+        
+        // Call edge function to get user email
+        const { data, error } = await supabase.functions.invoke('get-user-email', {
+          body: { userId: friendId }
+        });
+
+        return {
+          ...friendship,
+          friendEmail: data?.email || 'Unknown User',
+        };
+      })
+    );
+
+    setFriends(friendsWithEmails);
 
     // Get pending requests (where current user is the friend_id - incoming requests)
     const { data: pending, error: pendingError } = await supabase

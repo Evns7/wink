@@ -71,22 +71,34 @@ serve(async (req) => {
       });
     }
 
-    // Get friend preferences if group activity
+    // Get friend profiles and preferences if group activity
+    let friendProfiles: any[] = [];
     let friendPreferences: any[] = [];
     if (friendIds && friendIds.length > 0) {
-      const { data } = await supabase
-        .from('preferences')
-        .select('*')
-        .in('user_id', friendIds);
-      friendPreferences = data || [];
+      const [friendProfilesResult, friendPrefsResult] = await Promise.all([
+        supabase.from('profiles').select('*').in('id', friendIds),
+        supabase.from('preferences').select('*').in('user_id', friendIds)
+      ]);
+      friendProfiles = friendProfilesResult.data || [];
+      friendPreferences = friendPrefsResult.data || [];
     }
 
-    // Fetch nearby activities (within 10km)
+    // Calculate midpoint between users for proximity scoring
+    let centerLat = profile.home_lat;
+    let centerLng = profile.home_lng;
+    if (friendProfiles.length > 0) {
+      const allLats = [profile.home_lat, ...friendProfiles.map(f => f.home_lat)].filter(Boolean);
+      const allLngs = [profile.home_lng, ...friendProfiles.map(f => f.home_lng)].filter(Boolean);
+      centerLat = allLats.reduce((a, b) => a + b, 0) / allLats.length;
+      centerLng = allLngs.reduce((a, b) => a + b, 0) / allLngs.length;
+    }
+
+    // Fetch nearby activities (within 5km of midpoint)
     const { data: activities, error: activitiesError } = await supabase
       .rpc('nearby_activities', {
-        user_lat: profile.home_lat,
-        user_lng: profile.home_lng,
-        radius_km: 10
+        user_lat: centerLat,
+        user_lng: centerLng,
+        radius_km: 5
       });
 
     if (activitiesError) {
@@ -95,152 +107,234 @@ serve(async (req) => {
 
     const allActivities = activities || [];
 
-    // Score and rank activities
+    // Enhanced 6-factor scoring system (weights: 30-20-15-15-10-10)
     const scoredActivities = allActivities.map((activity: any) => {
-      let score = 0;
-      const factors: any = {};
+      const scoreBreakdown: any = {
+        preference: 0,
+        time_fit: 0,
+        weather: 0,
+        budget: 0,
+        proximity: 0,
+        duration: 0,
+      };
 
-      // 1. User preference match (40% weight)
+      // 1. Preference Match (30 points) - average of user + friends
       const userPref = userPreferences.find(p => p.category === activity.category);
       const userPrefScore = userPref ? userPref.score : 0.5;
-      score += userPrefScore * 40;
-      factors.userPreference = userPrefScore;
-
-      // 2. Friend preference alignment (20% weight if group)
+      
       if (friendPreferences.length > 0) {
         const friendScores = friendPreferences
           .filter(p => p.category === activity.category)
           .map(p => p.score);
-        const avgFriendScore = friendScores.length > 0
-          ? friendScores.reduce((a, b) => a + b, 0) / friendScores.length
-          : 0.3;
-        score += avgFriendScore * 20;
-        factors.friendAlignment = avgFriendScore;
+        const avgFriendScore = friendScores.length > 0 
+          ? friendScores.reduce((a, b) => a + b, 0) / friendScores.length 
+          : 0.5;
+        scoreBreakdown.preference = Math.round(((userPrefScore + avgFriendScore) / 2) * 30);
+      } else {
+        scoreBreakdown.preference = Math.round(userPrefScore * 30);
       }
 
-      // 3. Weather compatibility (15% weight)
-      const weatherScore = getWeatherScore(activity, weather);
-      score += weatherScore * 15;
-      factors.weatherMatch = weatherScore;
+      // 2. Time of Day Fit (20 points)
+      if (freeBlock?.start) {
+        const hour = new Date(freeBlock.start).getHours();
+        const category = activity.category.toLowerCase();
+        let timeFitScore = 0.5; // default
 
-      // 4. Time of day appropriateness (10% weight)
-      const timeScore = getTimeScore(activity, freeBlock?.start);
-      score += timeScore * 10;
-      factors.timeAppropriate = timeScore;
+        // Food: High at meal times
+        if (category.includes('restaurant') || category.includes('cafe') || category.includes('bar')) {
+          if ((hour >= 7 && hour <= 10) || (hour >= 11 && hour <= 14) || (hour >= 18 && hour <= 21)) {
+            timeFitScore = 1;
+          } else if (hour >= 15 && hour <= 17) {
+            timeFitScore = 0.7;
+          }
+        }
+        // Sports: High morning/evening
+        else if (category.includes('sport') || category.includes('gym')) {
+          if ((hour >= 6 && hour <= 10) || (hour >= 17 && hour <= 20)) {
+            timeFitScore = 1;
+          } else if (hour >= 11 && hour <= 16) {
+            timeFitScore = 0.6;
+          }
+        }
+        // Study/Work: High mornings
+        else if (category.includes('library') || category.includes('coworking')) {
+          if (hour >= 8 && hour <= 12) {
+            timeFitScore = 1;
+          } else if (hour >= 13 && hour <= 17) {
+            timeFitScore = 0.7;
+          }
+        }
+        // Shopping: High daytime
+        else if (category.includes('shop') || category.includes('mall')) {
+          if (hour >= 10 && hour <= 20) {
+            timeFitScore = 1;
+          } else {
+            timeFitScore = 0.4;
+          }
+        }
+        // Entertainment: High evenings
+        else if (category.includes('cinema') || category.includes('theater') || category.includes('entertainment')) {
+          if (hour >= 18 && hour <= 22) {
+            timeFitScore = 1;
+          } else if (hour >= 14 && hour <= 17) {
+            timeFitScore = 0.7;
+          }
+        }
+        // Parks/Outdoor: High during day
+        else if (category.includes('park') || category.includes('garden')) {
+          if (hour >= 10 && hour <= 18) {
+            timeFitScore = 1;
+          } else {
+            timeFitScore = 0.5;
+          }
+        }
 
-      // 5. Budget fit (10% weight)
-      const budgetScore = getBudgetScore(activity, profile);
-      score += budgetScore * 10;
-      factors.budgetFit = budgetScore;
+        scoreBreakdown.time_fit = Math.round(timeFitScore * 20);
+      }
 
-      // 6. Distance/travel time (5% weight - closer is better)
-      const distance = activity.distance || 5; // km
-      const distanceScore = Math.max(0, 1 - (distance / 20));
-      score += distanceScore * 5;
-      factors.proximity = distanceScore;
+      // 3. Weather Match (15 points)
+      if (weather) {
+        const category = activity.category.toLowerCase();
+        const isOutdoor = category.includes('park') || category.includes('garden') || 
+                         category.includes('sport') || category.includes('outdoor');
+        const isIndoor = !isOutdoor;
+
+        if (isOutdoor) {
+          scoreBreakdown.weather = weather.isRaining ? 5 : 15;
+        } else if (isIndoor) {
+          scoreBreakdown.weather = weather.isRaining ? 15 : 10;
+        } else {
+          scoreBreakdown.weather = 10;
+        }
+      } else {
+        scoreBreakdown.weather = 10; // neutral if no weather data
+      }
+
+      // 4. Budget Fit (15 points)
+      const priceLevel = activity.price_level || 1;
+      const userBudgetMax = profile.budget_max || 50;
+      const allBudgets = [userBudgetMax, ...friendProfiles.map(f => f.budget_max || 50)];
+      const lowestBudget = Math.min(...allBudgets);
+
+      // Price level scale: 1=£10, 2=£25, 3=£50, 4=£100
+      const estimatedPrice = priceLevel * 25;
+      if (estimatedPrice <= lowestBudget) {
+        scoreBreakdown.budget = 15;
+      } else if (estimatedPrice <= lowestBudget * 1.2) {
+        scoreBreakdown.budget = 10;
+      } else {
+        scoreBreakdown.budget = 5;
+      }
+
+      // 5. Proximity (10 points) - closer to midpoint = higher score
+      const distance = activity.distance || 0;
+      if (distance <= 1) {
+        scoreBreakdown.proximity = 10;
+      } else if (distance <= 2) {
+        scoreBreakdown.proximity = 8;
+      } else if (distance <= 3) {
+        scoreBreakdown.proximity = 6;
+      } else if (distance <= 4) {
+        scoreBreakdown.proximity = 4;
+      } else {
+        scoreBreakdown.proximity = 2;
+      }
+
+      // 6. Duration Fit (10 points)
+      if (freeBlock) {
+        const blockDuration = freeBlock.duration;
+        const travelTime = (distance || 0) * 10; // 10 min per km
+        const activityDuration = 90; // assume 90 min average activity
+        const totalNeeded = travelTime + activityDuration;
+
+        if (totalNeeded <= blockDuration * 0.8) {
+          scoreBreakdown.duration = 10;
+        } else if (totalNeeded <= blockDuration) {
+          scoreBreakdown.duration = 7;
+        } else {
+          scoreBreakdown.duration = 3;
+        }
+      } else {
+        scoreBreakdown.duration = 7; // neutral
+      }
+
+      const totalScore = Object.values(scoreBreakdown).reduce((a: any, b: any) => a + b, 0);
 
       return {
         ...activity,
-        matchScore: Math.round(score),
-        matchFactors: factors,
-        travelTimeMinutes: Math.round(distance * 3), // rough estimate: 3 min per km
-        isPerfectMatch: score >= 80
+        totalScore,
+        score_breakdown: scoreBreakdown,
       };
     });
 
-    // Sort by score and return top 10
-    const topActivities = scoredActivities
-      .sort((a: any, b: any) => b.matchScore - a.matchScore)
-      .slice(0, 10);
+    // Filter activities scoring < 50
+    const filteredActivities = scoredActivities.filter((a: any) => a.totalScore >= 50);
 
-    console.log('Top recommendations:', topActivities.length);
+    // Sort by score and take top 5
+    const top5Activities = filteredActivities
+      .sort((a: any, b: any) => b.totalScore - a.totalScore)
+      .slice(0, 5);
 
-    return new Response(JSON.stringify({ recommendations: topActivities }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.log(`Filtered ${filteredActivities.length} activities scoring >= 50, selected top 5`);
+
+    // If we have activities, enhance with Perplexity AI
+    let enhancedActivities = top5Activities;
+    if (top5Activities.length > 0) {
+      try {
+        const { data: aiData, error: aiError } = await supabase.functions.invoke(
+          'enhance-recommendations-ai',
+          {
+            body: {
+              activities: top5Activities.map((a: any) => ({
+                id: a.id,
+                name: a.name,
+                category: a.category,
+                totalScore: a.totalScore,
+                address: a.address,
+                price_level: a.price_level,
+              })),
+              timeSlot: freeBlock ? {
+                start: freeBlock.start,
+                end: freeBlock.end,
+              } : {
+                start: new Date().toISOString(),
+                end: new Date(Date.now() + 3600000).toISOString(),
+              },
+              weather: weather || { temp: 15, isRaining: false },
+              budget: {
+                min: profile.budget_min || 0,
+                max: profile.budget_max || 50,
+              },
+            },
+          }
+        );
+
+        if (aiError) {
+          console.error('AI enhancement error:', aiError);
+        } else if (aiData?.activities) {
+          enhancedActivities = top5Activities.map((activity: any) => {
+            const enhanced = aiData.activities.find((a: any) => a.id === activity.id);
+            return enhanced || activity;
+          });
+        }
+      } catch (aiError) {
+        console.error('Failed to enhance with AI:', aiError);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        recommendations: enhancedActivities,
+        total_filtered: filteredActivities.length,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
-    console.error('Error:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('Unexpected error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });
-
-function getWeatherScore(activity: any, weather: any): number {
-  if (!weather) return 0.7; // neutral if no weather data
-
-  const isGoodWeather = weather.temp > 15 && !weather.isRaining;
-  const category = activity.category.toLowerCase();
-  
-  // Outdoor categories
-  const outdoorCategories = ['parks', 'sports', 'recreation', 'nature'];
-  const isOutdoor = outdoorCategories.some(cat => category.includes(cat));
-
-  if (isOutdoor) {
-    return isGoodWeather ? 1.0 : 0.3;
-  }
-
-  // Indoor activities benefit from bad weather
-  return isGoodWeather ? 0.7 : 0.9;
-}
-
-function getTimeScore(activity: any, startTime?: string): number {
-  if (!startTime) return 0.7;
-
-  const hour = new Date(startTime).getHours();
-  const category = activity.category.toLowerCase();
-
-  // Morning activities (6-11)
-  if (hour >= 6 && hour < 11) {
-    if (category.includes('cafe') || category.includes('breakfast') || 
-        category.includes('park') || category.includes('gym')) {
-      return 1.0;
-    }
-  }
-
-  // Lunch (11-14)
-  if (hour >= 11 && hour < 14) {
-    if (category.includes('restaurant') || category.includes('food') || 
-        category.includes('cafe')) {
-      return 1.0;
-    }
-  }
-
-  // Afternoon (14-18)
-  if (hour >= 14 && hour < 18) {
-    if (category.includes('shopping') || category.includes('museum') || 
-        category.includes('entertainment')) {
-      return 1.0;
-    }
-  }
-
-  // Evening (18-22)
-  if (hour >= 18 && hour < 22) {
-    if (category.includes('restaurant') || category.includes('bar') || 
-        category.includes('entertainment') || category.includes('cinema')) {
-      return 1.0;
-    }
-  }
-
-  return 0.6; // default moderate score
-}
-
-function getBudgetScore(activity: any, profile: any): number {
-  const priceLevel = activity.price_level || 2; // 1-5 scale
-  const userMaxBudget = profile.budget_max || 100;
-
-  // Rough price estimates per level
-  const estimatedPrices = [0, 10, 25, 50, 100, 200];
-  const estimatedPrice = estimatedPrices[priceLevel] || 25;
-
-  if (estimatedPrice <= userMaxBudget) {
-    return 1.0;
-  }
-
-  // Penalty for over budget
-  const overBudgetRatio = estimatedPrice / userMaxBudget;
-  return Math.max(0, 1 - (overBudgetRatio - 1));
-}

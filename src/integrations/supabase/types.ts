@@ -113,6 +113,7 @@ export type Database = {
         Row: {
           activity_id: string
           calendar_event_created: boolean | null
+          context: Json | null
           created_at: string
           friend_id: string
           id: string
@@ -124,6 +125,7 @@ export type Database = {
         Insert: {
           activity_id: string
           calendar_event_created?: boolean | null
+          context?: Json | null
           created_at?: string
           friend_id: string
           id?: string
@@ -135,6 +137,7 @@ export type Database = {
         Update: {
           activity_id?: string
           calendar_event_created?: boolean | null
+          context?: Json | null
           created_at?: string
           friend_id?: string
           id?: string

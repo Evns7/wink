@@ -12,6 +12,27 @@ const swipeSchema = z.object({
   activityId: z.string().uuid(),
   response: z.enum(['accept', 'reject']),
   suggestedTime: z.string().datetime(),
+  context: z.object({
+    score_breakdown: z.object({
+      preference: z.number(),
+      time_fit: z.number(),
+      weather: z.number(),
+      budget: z.number(),
+      proximity: z.number(),
+      duration: z.number(),
+    }).optional(),
+    total_score: z.number().optional(),
+    weather_conditions: z.object({
+      temp: z.number(),
+      isRaining: z.boolean(),
+    }).optional(),
+    time_block: z.object({
+      start: z.string(),
+      end: z.string(),
+    }).optional(),
+    ai_reasoning: z.string().nullable().optional(),
+    insider_tip: z.string().nullable().optional(),
+  }).optional(),
 });
 
 serve(async (req) => {
@@ -48,11 +69,11 @@ serve(async (req) => {
       );
     }
 
-    const { friendId, activityId, response, suggestedTime } = validationResult.data;
+    const { friendId, activityId, response, suggestedTime, context } = validationResult.data;
 
     console.log(`User ${user.id} swiped ${response} on activity ${activityId} with friend ${friendId} at ${suggestedTime}`);
 
-    // Record the swipe
+    // Record the swipe with context
     const { data: swipeData, error: swipeError } = await supabaseClient
       .from('activity_swipes')
       .insert({
@@ -61,6 +82,7 @@ serve(async (req) => {
         activity_id: activityId,
         response: response,
         suggested_time: suggestedTime,
+        context: context || null,
       })
       .select()
       .single();
