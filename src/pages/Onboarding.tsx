@@ -17,6 +17,7 @@ const Onboarding = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [preferences, setPreferences] = useState({
     homeAddress: "",
+    nickname: "",
     food: 5,
     shopping: 5,
     sports: 5,
@@ -117,10 +118,11 @@ const Onboarding = () => {
         }
       }
 
-      const { error: profileError } = await supabase
+          const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
           id: userId,
+          nickname: preferences.nickname.trim() || null,
           home_address: preferences.homeAddress,
           home_lat: coords?.lat,
           home_lng: coords?.lng,
@@ -175,7 +177,7 @@ const Onboarding = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-afternoon flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl glass border-2">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold">
@@ -194,6 +196,21 @@ const Onboarding = () => {
           {/* Step 1: Basic Info */}
           {step === 1 && (
             <div className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="nickname" className="text-lg">Display Name</Label>
+                <Input
+                  id="nickname"
+                  placeholder="How should friends see you?"
+                  value={preferences.nickname}
+                  onChange={(e) => setPreferences({ ...preferences, nickname: e.target.value })}
+                  className="h-12 text-base rounded-xl"
+                  maxLength={50}
+                />
+                <p className="text-sm text-muted-foreground">
+                  This is what your friends will see in activity suggestions and friend requests
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="address" className="text-lg">Home Address</Label>
                 <div className="flex gap-2">

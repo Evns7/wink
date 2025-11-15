@@ -4,16 +4,18 @@ import { calendarService, DaySchedule, TimeBlock } from "@/services/calendarServ
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CalendarComparisonProps {
   selectedFriendId: string | null;
+  onMakePlansWithBlocks?: (blocks: TimeBlock[]) => void;
 }
 
-export const CalendarComparison = ({ selectedFriendId }: CalendarComparisonProps) => {
+export const CalendarComparison = ({ selectedFriendId, onMakePlansWithBlocks }: CalendarComparisonProps) => {
   const [schedules, setSchedules] = useState<DaySchedule[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedBlocks, setSelectedBlocks] = useState<TimeBlock[]>([]);
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date();
     const dayOfWeek = today.getDay();
@@ -89,26 +91,46 @@ export const CalendarComparison = ({ selectedFriendId }: CalendarComparisonProps
     return (
       <div className="space-y-1">
         <p className="text-xs font-medium text-muted-foreground mb-2">{label}</p>
-        {blocks.map((block, idx) => (
-          <div
-            key={idx}
-            className={`p-2 rounded border ${getBlockColor(block.type)} transition-all hover:scale-[1.02]`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium">
-                {formatTime(block.start)} - {formatTime(block.end)}
-              </span>
-              {block.type === 'overlap' && (
-                <Badge variant="secondary" className="text-[10px] bg-green-500 text-white">
-                  Both Free
-                </Badge>
+        {blocks.map((block, idx) => {
+          const isSelected = selectedBlocks.some(b => 
+            b.start.getTime() === block.start.getTime() && b.end.getTime() === block.end.getTime()
+          );
+          const isOverlap = block.type === 'overlap';
+          
+          return (
+            <div
+              key={idx}
+              onClick={() => {
+                if (isOverlap) {
+                  if (isSelected) {
+                    setSelectedBlocks(selectedBlocks.filter(b => 
+                      b.start.getTime() !== block.start.getTime() || b.end.getTime() !== block.end.getTime()
+                    ));
+                  } else {
+                    setSelectedBlocks([...selectedBlocks, block]);
+                  }
+                }
+              }}
+              className={`p-2 rounded border ${getBlockColor(block.type)} transition-all ${
+                isOverlap ? 'cursor-pointer hover:scale-[1.02]' : ''
+              } ${isSelected ? 'ring-2 ring-primary' : ''}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium">
+                  {formatTime(block.start)} - {formatTime(block.end)}
+                </span>
+                {isOverlap && (
+                  <Badge variant="secondary" className="text-[10px] bg-green-500 text-white">
+                    {isSelected ? '✓ Selected' : 'Both Free'}
+                  </Badge>
+                )}
+              </div>
+              {block.eventTitle && (
+                <p className="text-xs text-muted-foreground mt-1 truncate">{block.eventTitle}</p>
               )}
             </div>
-            {block.eventTitle && (
-              <p className="text-xs text-muted-foreground mt-1 truncate">{block.eventTitle}</p>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -219,6 +241,19 @@ export const CalendarComparison = ({ selectedFriendId }: CalendarComparisonProps
           );
         })}
       </div>
+
+      {/* Make Plans Button */}
+      {selectedBlocks.length > 0 && onMakePlansWithBlocks && (
+        <div className="flex justify-center pt-4">
+          <Button 
+            onClick={() => onMakePlansWithBlocks(selectedBlocks)}
+            className="w-full md:w-auto"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Make Plans with {selectedBlocks.length} Selected Time Block{selectedBlocks.length > 1 ? 's' : ''}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
