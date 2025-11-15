@@ -13,6 +13,7 @@ import { Progress } from "@/components/ui/progress";
 interface Activity {
   id: string;
   name: string;
+  description?: string;
   category: string;
   matchScore: number;
   matchFactors: {
@@ -21,16 +22,25 @@ interface Activity {
     weather: number;
     budget: number;
     proximity: number;
-    duration: number;
+    popularity?: number;
+    duration?: number;
   };
-  travelTimeMinutes: number;
-  distance: number;
+  travelTimeMinutes?: number;
+  distance?: number;
   isPerfectMatch: boolean;
-  address: string;
-  price_level: number;
+  address?: string;
+  location?: string;
+  price_level?: number;
+  price?: string;
+  priceRange?: string;
+  date?: string;
+  time?: string;
+  url?: string;
   link?: string;
   lat?: number;
   lng?: number;
+  source?: string;
+  popularity?: string;
 }
 
 export const SmartRecommendations = () => {
@@ -63,7 +73,7 @@ export const SmartRecommendations = () => {
     // Price filter
     if (priceFilter !== "all") {
       const priceLevel = parseInt(priceFilter);
-      filtered = filtered.filter(a => a.price_level === priceLevel);
+      filtered = filtered.filter(a => (a.price_level) === priceLevel);
     }
 
     // Category filter
@@ -73,8 +83,8 @@ export const SmartRecommendations = () => {
       );
     }
 
-    // Distance filter
-    filtered = filtered.filter(a => a.distance <= maxDistance);
+    // Distance filter - only apply if distance is available
+    filtered = filtered.filter(a => !a.distance || a.distance <= maxDistance);
 
     setFilteredRecommendations(filtered);
   };
@@ -109,11 +119,12 @@ export const SmartRecommendations = () => {
       const weather = { temp: 20, isRaining: false };
 
       const { data, error } = await supabase.functions.invoke('smart-activity-recommendations', {
-        body: { freeBlock: block, friendIds: [], weather }
+        body: { freeBlock: block, friendIds: [], weather, refresh: true }
       });
 
       if (error) throw error;
       
+      console.log('Received live recommendations:', data);
       setRecommendations(data.recommendations || []);
     } catch (error) {
       console.error('Error getting recommendations:', error);
@@ -163,8 +174,9 @@ export const SmartRecommendations = () => {
     }
   };
 
-  const getPriceDisplay = (level: number) => {
-    return '$'.repeat(level || 2);
+  const getPriceDisplay = (level?: number) => {
+    if (!level || level === 0) return 'Free';
+    return '$'.repeat(level);
   };
 
   const getMatchColor = (score: number) => {
@@ -181,6 +193,7 @@ export const SmartRecommendations = () => {
       weather: "Weather Match",
       budget: "Budget Fit",
       proximity: "Close By",
+      popularity: "Popularity",
       duration: "Time Available"
     };
     return labels[key] || key;
@@ -206,6 +219,7 @@ export const SmartRecommendations = () => {
       weather: 15,
       budget: 15,
       proximity: 10,
+      popularity: 10,
       duration: 10
     };
     return maxScores[key] || 10;
@@ -218,12 +232,12 @@ export const SmartRecommendations = () => {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 font-serif">
               <Sparkles className="h-5 w-5 text-primary" />
-              Smart Recommendations
+              Live Event Recommendations
             </CardTitle>
-            <CardDescription>
-              AI-powered suggestions based on your preferences, location, and budget
+            <CardDescription className="font-sans">
+              Real events from Eventbrite scraped live - updates every refresh
             </CardDescription>
           </div>
           <Button
@@ -355,22 +369,32 @@ export const SmartRecommendations = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="p-4 bg-card/50 rounded-xl space-y-3 hover:bg-card/70 transition-colors"
+                  className="p-4 bg-card/50 rounded-xl space-y-3 hover:bg-card/70 transition-colors border border-border/50"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold">{activity.name}</h4>
+                        <h4 className="font-serif font-bold text-lg">{activity.name}</h4>
                         {activity.isPerfectMatch && (
                           <Badge variant="default" className="rounded-full bg-green-500">
                             <Zap className="h-3 w-3 mr-1" />
-                            Perfect Match
+                            Perfect
+                          </Badge>
+                        )}
+                        {activity.source === 'live_eventbrite' && (
+                          <Badge variant="secondary" className="rounded-full text-xs">
+                            Live
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        {activity.category}
+                      <p className="text-sm text-muted-foreground mb-2 font-sans">
+                        {activity.category} • {activity.date ? new Date(activity.date).toLocaleDateString() : 'Date TBA'} {activity.time && `at ${activity.time}`}
                       </p>
+                      {activity.description && (
+                        <p className="text-xs text-muted-foreground mb-3 line-clamp-2 font-sans">
+                          {activity.description}
+                        </p>
+                      )}
                       
                       {/* Match Score - Prominent */}
                       <div className="mb-3">
@@ -385,28 +409,30 @@ export const SmartRecommendations = () => {
 
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground font-sans">
                         <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {activity.travelTimeMinutes} min away
+                          <MapPin className="h-3 w-3" />
+                          {activity.location || activity.address || 'Location TBA'}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <DollarSign className="h-3 w-3" />
-                          {getPriceDisplay(activity.price_level)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Navigation className="h-3 w-3" />
-                          {activity.distance.toFixed(1)} km
-                        </span>
+                        {activity.priceRange && (
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            {activity.priceRange}
+                          </span>
+                        )}
+                        {activity.popularity && (
+                          <span className="flex items-center gap-1">
+                            <TrendingUp className="h-3 w-3" />
+                            {activity.popularity} demand
+                          </span>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2 font-sans">{activity.address || 'Address not available'}</p>
-                      {activity.link && (
+                      {(activity.url || activity.link) && (
                         <a 
-                          href={activity.link} 
+                          href={activity.url || activity.link} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1 font-sans"
+                          className="text-xs text-primary hover:underline mt-2 inline-flex items-center gap-1 font-sans"
                         >
-                          <MapPin className="w-3 h-3" />
-                          View on Google Maps →
+                          View event details →
                         </a>
                       )}
 
