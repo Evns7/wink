@@ -199,7 +199,7 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar',
+        model: 'sonar-pro',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -256,7 +256,7 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
           }
         },
         temperature: 0.3,
-        max_tokens: 3000,
+        max_tokens: 6000,
       }),
     });
 
