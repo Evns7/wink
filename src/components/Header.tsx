@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Home, User, LogOut, Calendar, Sparkles } from "lucide-react";
+import { Home, User, LogOut, Calendar, Sparkles, Clock } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Breadcrumb,
@@ -19,11 +19,43 @@ import {
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState } from "react";
+import { timezoneService, TimezoneInfo } from "@/services/timezoneService";
 
 export const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const [timezone, setTimezone] = useState<TimezoneInfo | null>(null);
+  const [currentTime, setCurrentTime] = useState<string>('');
+
+  // Detect timezone on mount
+  useEffect(() => {
+    const detectTz = async () => {
+      const tz = await timezoneService.detectTimezone();
+      setTimezone(tz);
+    };
+    detectTz();
+  }, []);
+
+  // Update time every minute
+  useEffect(() => {
+    if (!timezone) return;
+
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      }));
+    };
+
+    updateTime(); // Initial update
+    const interval = setInterval(updateTime, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, [timezone]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -67,6 +99,19 @@ export const Header = () => {
               Wink
             </span>
           </Link>
+
+          {/* Timezone and Time Display */}
+          {timezone && currentTime && (
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-border/50">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col">
+                <span className="text-xs font-medium text-foreground">{currentTime}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {timezone.timezone.split('/')[1]?.replace('_', ' ') || timezone.timezone} ({timezone.abbreviation})
+                </span>
+              </div>
+            </div>
+          )}
 
           {breadcrumbs.length > 0 && (
             <Breadcrumb>
