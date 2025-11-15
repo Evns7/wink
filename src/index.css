@@ -8,73 +8,55 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Base colors - clean, modern palette */
-    --background: 0 0% 100%;
-    --foreground: 240 10% 15%;
+    /* Main gradient background - periwinkle to lavender-pink */
+    --gradient-main: linear-gradient(90deg, hsl(220 70% 92%) 0%, hsl(280 50% 90%) 50%, hsl(310 60% 88%) 100%);
+    
+    /* Base colors - bright, friendly, elegant */
+    --background: 220 70% 92%;
+    --foreground: 240 10% 20%;
 
-    /* Glassmorphic card */
+    /* Pure white cards with elegant shadows */
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 15%;
+    --card-foreground: 240 10% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 15%;
+    --popover-foreground: 240 10% 20%;
 
-    /* Primary - vibrant purple for modern energy */
-    --primary: 262 83% 58%;
+    /* Primary - soft purple to match gradient */
+    --primary: 270 60% 65%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary - modern slate */
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 240 10% 15%;
+    /* Secondary - soft lavender */
+    --secondary: 280 40% 90%;
+    --secondary-foreground: 240 10% 20%;
 
-    /* Muted - subtle gray */
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
+    /* Muted - light, airy */
+    --muted: 240 20% 95%;
+    --muted-foreground: 240 4% 50%;
 
-    /* Accent - energetic orange */
-    --accent: 25 95% 53%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent - soft pink to complement gradient */
+    --accent: 310 50% 75%;
+    --accent-foreground: 240 10% 20%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 70% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 262 83% 58%;
+    --border: 240 10% 88%;
+    --input: 240 10% 88%;
+    --ring: 270 60% 65%;
 
-    --radius: 0.75rem;
+    --radius: 1.5rem;
 
-    /* Activity category colors - vibrant and distinct */
-    --category-food: 25 95% 53%;
-    --category-shopping: 280 80% 60%;
-    --category-sports: 142 76% 36%;
-    --category-studying: 221 83% 53%;
+    /* Activity category colors - soft, elegant */
+    --category-food: 25 80% 65%;
+    --category-shopping: 280 70% 70%;
+    --category-sports: 142 60% 50%;
+    --category-studying: 221 70% 65%;
 
-    /* Time-of-day gradients - more vibrant */
-    --gradient-sunrise: linear-gradient(135deg, hsl(33 100% 70%) 0%, hsl(340 82% 52%) 100%);
-    --gradient-afternoon: linear-gradient(135deg, hsl(195 100% 50%) 0%, hsl(262 83% 58%) 100%);
-    --gradient-sunset: linear-gradient(135deg, hsl(340 82% 52%) 0%, hsl(262 83% 58%) 100%);
-    --gradient-night: linear-gradient(135deg, hsl(240 40% 20%) 0%, hsl(262 60% 30%) 100%);
-
-    /* Hero gradient - vibrant multi-color */
-    --gradient-hero: linear-gradient(135deg, hsl(262 83% 58%) 0%, hsl(340 82% 52%) 50%, hsl(33 100% 70%) 100%);
-    
-    /* Mesh gradient for backgrounds */
-    --gradient-mesh: radial-gradient(at 40% 20%, hsl(262 83% 58% / 0.3) 0px, transparent 50%),
-                     radial-gradient(at 80% 0%, hsl(340 82% 52% / 0.3) 0px, transparent 50%),
-                     radial-gradient(at 0% 50%, hsl(195 100% 50% / 0.2) 0px, transparent 50%),
-                     radial-gradient(at 80% 50%, hsl(33 100% 70% / 0.3) 0px, transparent 50%);
-
-    /* Glassmorphism effects */
-    --glass-bg: hsla(0, 0%, 100%, 0.7);
-    --glass-border: hsla(240, 6%, 90%, 0.5);
-    --glass-shadow: 0 8px 32px 0 hsla(262, 83%, 58%, 0.1);
-
-    /* Shadows - more subtle */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+    /* Soft shadows for elegant depth */
+    --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.04);
+    --shadow-panel: 0 8px 30px rgba(0, 0, 0, 0.06);
+    --shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.08);
 
     /* Transitions */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -91,8 +73,8 @@ All colors MUST be HSL.
     --popover: 230 25% 16%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 185 70% 55%;
-    --primary-foreground: 230 30% 12%;
+    --primary: 270 60% 65%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 230 20% 22%;
     --secondary-foreground: 0 0% 95%;
@@ -100,7 +82,7 @@ All colors MUST be HSL.
     --muted: 230 20% 20%;
     --muted-foreground: 0 0% 70%;
 
-    --accent: 185 75% 50%;
+    --accent: 310 50% 70%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 70% 55%;
@@ -108,11 +90,11 @@ All colors MUST be HSL.
 
     --border: 230 20% 22%;
     --input: 230 20% 22%;
-    --ring: 185 70% 55%;
+    --ring: 270 60% 65%;
 
-    --glass-bg: hsla(230, 25%, 16%, 0.7);
-    --glass-border: hsla(0, 0%, 100%, 0.1);
-    --glass-shadow: 0 8px 32px 0 hsla(0, 0%, 0%, 0.4);
+    --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.3);
+    --shadow-panel: 0 8px 30px rgba(0, 0, 0, 0.4);
+    --shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -122,16 +104,23 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply text-foreground font-sans antialiased;
+    background: var(--gradient-main);
+    background-attachment: fixed;
+    font-family: 'Inter', 'Poppins', sans-serif;
   }
 
-  /* Glassmorphic utility */
-  .glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-shadow);
+  /* Typography */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+
+  /* Elegant panel utility */
+  .panel {
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-panel);
+    padding: 2rem;
   }
 
   /* Smooth transitions */
