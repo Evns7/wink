@@ -145,6 +145,19 @@ const Index = () => {
               <span>AI-powered</span>
             </div>
           </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.2 }}
+            className="mt-20 max-w-3xl mx-auto"
+          >
+            <div className="bg-gradient-to-br from-primary/10 via-accent/5 to-background border border-primary/20 rounded-2xl p-8 backdrop-blur-sm shadow-xl">
+              <p className="text-base md:text-lg text-foreground/90 leading-relaxed">
+                Wink was born from the spirit of Movember and its message about men&apos;s mental health and the silent epidemic of loneliness. We realised that most of us want to make plans, but life, schedules and invisible barriers get in the way. Wink makes it effortless to see when friends are free, discover things you can enjoy together, and turn good intentions into real moments. It&apos;s a small push—a wink—that helps people connect more often and with less friction.
+              </p>
+            </div>
+          </motion.div>
         </div>
       </motion.div>
 
