@@ -3,17 +3,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, MapPin, Clock, DollarSign, Calendar, Zap } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Sparkles, MapPin, Clock, DollarSign, Calendar, Zap, ChevronDown, ChevronUp, Filter, TrendingUp, Heart, Cloud, Navigation } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { Progress } from "@/components/ui/progress";
 
 interface Activity {
   id: string;
   name: string;
   category: string;
   matchScore: number;
-  matchFactors: any;
+  matchFactors: {
+    preference: number;
+    time_fit: number;
+    weather: number;
+    budget: number;
+    proximity: number;
+    duration: number;
+  };
   travelTimeMinutes: number;
+  distance: number;
   isPerfectMatch: boolean;
   address: string;
   price_level: number;
@@ -21,20 +32,55 @@ interface Activity {
 
 export const SmartRecommendations = () => {
   const [recommendations, setRecommendations] = useState<Activity[]>([]);
+  const [filteredRecommendations, setFilteredRecommendations] = useState<Activity[]>([]);
   const [freeBlocks, setFreeBlocks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState<any>(null);
+  const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Filter states
+  const [priceFilter, setPriceFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [maxDistance, setMaxDistance] = useState<number>(5);
+  
   const { toast } = useToast();
 
   useEffect(() => {
     analyzeAvailability();
   }, []);
 
+  useEffect(() => {
+    applyFilters();
+  }, [recommendations, priceFilter, categoryFilter, maxDistance]);
+
+  const applyFilters = () => {
+    let filtered = [...recommendations];
+
+    // Price filter
+    if (priceFilter !== "all") {
+      const priceLevel = parseInt(priceFilter);
+      filtered = filtered.filter(a => a.price_level === priceLevel);
+    }
+
+    // Category filter
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter(a => 
+        a.category.toLowerCase().includes(categoryFilter.toLowerCase())
+      );
+    }
+
+    // Distance filter
+    filtered = filtered.filter(a => a.distance <= maxDistance);
+
+    setFilteredRecommendations(filtered);
+  };
+
   const analyzeAvailability = async () => {
     setLoading(true);
     try {
       const startDate = new Date().toISOString();
-      const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
+      const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
       const { data, error } = await supabase.functions.invoke('analyze-group-availability', {
         body: { startDate, endDate, friendIds: [] }
@@ -57,7 +103,6 @@ export const SmartRecommendations = () => {
   const getRecommendations = async (block: any) => {
     setLoading(true);
     try {
-      // Get weather (mock for now)
       const weather = { temp: 20, isRaining: false };
 
       const { data, error } = await supabase.functions.invoke('smart-activity-recommendations', {
@@ -84,7 +129,7 @@ export const SmartRecommendations = () => {
 
     try {
       const startTime = new Date(selectedBlock.start);
-      const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000); // 2 hours
+      const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
 
       const { data, error } = await supabase.functions.invoke('create-calendar-event', {
         body: {
@@ -104,7 +149,6 @@ export const SmartRecommendations = () => {
         description: `${activity.name} added to your calendar`,
       });
 
-      // Refresh availability
       analyzeAvailability();
     } catch (error) {
       console.error('Error scheduling:', error);
@@ -120,18 +164,138 @@ export const SmartRecommendations = () => {
     return '$'.repeat(level || 2);
   };
 
+  const getMatchColor = (score: number) => {
+    if (score >= 85) return "text-green-500";
+    if (score >= 70) return "text-blue-500";
+    if (score >= 50) return "text-yellow-500";
+    return "text-muted-foreground";
+  };
+
+  const getFactorLabel = (key: string) => {
+    const labels: Record<string, string> = {
+      preference: "Your Interests",
+      time_fit: "Perfect Timing",
+      weather: "Weather Match",
+      budget: "Budget Fit",
+      proximity: "Close By",
+      duration: "Time Available"
+    };
+    return labels[key] || key;
+  };
+
+  const getFactorIcon = (key: string) => {
+    const icons: Record<string, any> = {
+      preference: Heart,
+      time_fit: Clock,
+      weather: Cloud,
+      budget: DollarSign,
+      proximity: Navigation,
+      duration: TrendingUp
+    };
+    const Icon = icons[key] || Sparkles;
+    return <Icon className="h-3 w-3" />;
+  };
+
+  const getFactorMaxScore = (key: string) => {
+    const maxScores: Record<string, number> = {
+      preference: 30,
+      time_fit: 20,
+      weather: 15,
+      budget: 15,
+      proximity: 10,
+      duration: 10
+    };
+    return maxScores[key] || 10;
+  };
+
+  const categories = Array.from(new Set(recommendations.map(r => r.category)));
+
   return (
     <Card className="glass">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          Smart Recommendations
-        </CardTitle>
-        <CardDescription>
-          AI-powered activity suggestions based on your free time and preferences
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Smart Recommendations
+            </CardTitle>
+            <CardDescription>
+              AI-powered suggestions based on your preferences, location, and budget
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="rounded-full"
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filters
+            {showFilters ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Filters */}
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-4 p-4 bg-muted/30 rounded-xl"
+            >
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Price Level</label>
+                  <Select value={priceFilter} onValueChange={setPriceFilter}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="All prices" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All prices</SelectItem>
+                      <SelectItem value="1">$ (Budget)</SelectItem>
+                      <SelectItem value="2">$$ (Moderate)</SelectItem>
+                      <SelectItem value="3">$$$ (Upscale)</SelectItem>
+                      <SelectItem value="4">$$$$ (Premium)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Category</label>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="All categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All categories</SelectItem>
+                      {categories.map(cat => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Max Distance</label>
+                  <span className="text-sm text-muted-foreground">{maxDistance} km</span>
+                </div>
+                <Slider
+                  value={[maxDistance]}
+                  onValueChange={(value) => setMaxDistance(value[0])}
+                  min={1}
+                  max={10}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {loading && (
           <div className="text-center py-8">
             <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
@@ -143,7 +307,7 @@ export const SmartRecommendations = () => {
           <div className="text-center py-8">
             <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              No free time blocks found. Your schedule is fully booked!
+              No free time blocks found. Connect your calendar to get personalized recommendations!
             </p>
           </div>
         )}
@@ -173,31 +337,49 @@ export const SmartRecommendations = () => {
               ))}
             </div>
 
+            {/* Results summary */}
+            {filteredRecommendations.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                Showing {filteredRecommendations.length} of {recommendations.length} recommendations
+              </div>
+            )}
+
             {/* Recommendations */}
             <div className="space-y-3">
-              {recommendations.map((activity, index) => (
+              {filteredRecommendations.map((activity, index) => (
                 <motion.div
                   key={activity.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="p-4 bg-card/50 rounded-xl space-y-3 hover-scale"
+                  transition={{ delay: index * 0.05 }}
+                  className="p-4 bg-card/50 rounded-xl space-y-3 hover:bg-card/70 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-semibold">{activity.name}</h4>
                         {activity.isPerfectMatch && (
-                          <Badge variant="default" className="rounded-full">
+                          <Badge variant="default" className="rounded-full bg-green-500">
                             <Zap className="h-3 w-3 mr-1" />
                             Perfect Match
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground mb-2">
+                      <p className="text-sm text-muted-foreground mb-3">
                         {activity.category}
                       </p>
                       
+                      {/* Match Score - Prominent */}
+                      <div className="mb-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium">Match Score</span>
+                          <span className={`text-2xl font-bold ${getMatchColor(activity.matchScore)}`}>
+                            {activity.matchScore}%
+                          </span>
+                        </div>
+                        <Progress value={activity.matchScore} className="h-2" />
+                      </div>
+
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
@@ -208,24 +390,79 @@ export const SmartRecommendations = () => {
                           {getPriceDisplay(activity.price_level)}
                         </span>
                         <span className="flex items-center gap-1">
-                          <Sparkles className="h-3 w-3" />
-                          {activity.matchScore}% match
+                          <Navigation className="h-3 w-3" />
+                          {activity.distance.toFixed(1)} km
                         </span>
                       </div>
+
+                      {/* Why recommended? - Expandable */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setExpandedActivity(
+                          expandedActivity === activity.id ? null : activity.id
+                        )}
+                        className="mt-2 text-xs rounded-full"
+                      >
+                        Why recommended?
+                        {expandedActivity === activity.id ? 
+                          <ChevronUp className="h-3 w-3 ml-1" /> : 
+                          <ChevronDown className="h-3 w-3 ml-1" />
+                        }
+                      </Button>
+
+                      <AnimatePresence>
+                        {expandedActivity === activity.id && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mt-3 space-y-2 p-3 bg-muted/20 rounded-lg"
+                          >
+                            <p className="text-xs font-medium mb-2">Score Breakdown:</p>
+                            {Object.entries(activity.matchFactors).map(([key, value]) => (
+                              <div key={key} className="space-y-1">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="flex items-center gap-1">
+                                    {getFactorIcon(key)}
+                                    {getFactorLabel(key)}
+                                  </span>
+                                  <span className="font-medium">
+                                    {value}/{getFactorMaxScore(key)}
+                                  </span>
+                                </div>
+                                <Progress 
+                                  value={(value / getFactorMaxScore(key)) * 100} 
+                                  className="h-1" 
+                                />
+                              </div>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                     
                     <Button
                       size="sm"
                       onClick={() => scheduleActivity(activity)}
-                      className="rounded-full"
+                      className="rounded-full shrink-0"
                     >
-                      <Calendar className="h-3 w-3 mr-1" />
+                      <Calendar className="h-4 w-4 mr-2" />
                       Add to Calendar
                     </Button>
                   </div>
                 </motion.div>
               ))}
             </div>
+
+            {filteredRecommendations.length === 0 && recommendations.length > 0 && (
+              <div className="text-center py-8">
+                <Filter className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  No activities match your current filters. Try adjusting them!
+                </p>
+              </div>
+            )}
           </>
         )}
       </CardContent>
