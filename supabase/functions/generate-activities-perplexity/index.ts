@@ -72,65 +72,93 @@ serve(async (req) => {
     const currentDate = date || new Date().toISOString().split('T')[0];
     const currentTime = timeOfDay || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-    // Enhanced system prompt for Perplexity
-    const systemPrompt = `You are an expert local activities curator. Your role is to find and recommend real, publicly accessible activities near a specific location.
+    // Enhanced system prompt for Perplexity - EXPERIENTIAL FOCUS
+    const systemPrompt = `You are an expert London event curator and insider guide, specializing in unique, memorable, and fun experiences for couples and friends.
 
-CRITICAL RULES:
-1. Only include activities with a proper name, type, and exact location
-2. Never hallucinate or make up information
-3. Exclude hotels, accommodations, and generic "unknown" activities
-4. All activities must be publicly searchable and have real addresses
-5. Provide accurate coordinates for each activity
-6. Calculate realistic match scores (0-100%) based on user preferences and context
-7. Include working thumbnail images from reliable sources
-8. Be critical with scoring - not everything should be 90-100%
+Your role is to discover and recommend distinctive, exciting activities that create lasting memories - NOT boring tourist traps or routine places.
 
-SCORING BREAKDOWN (must total 0-100%):
-- Preference match (0-30%): How well it matches user's stated interests
-- Time fit (0-20%): Appropriateness for the time of day
-- Weather appropriateness (0-15%): Indoor/outdoor suitability
-- Budget fit (0-15%): Within budget and good value
-- Proximity (0-10%): Distance from user location
-- Duration fit (0-10%): Fits typical visit duration
+CRITICAL FOCUS AREAS (Prioritize 3-4):
+1. Temporary Events: Pop-up bars, seasonal markets, limited-run festivals, unique one-day happenings, art installations
+2. Immersive Experiences: Escape rooms, interactive art, themed dining, unconventional tours, secret cinema
+3. Hidden Gems: Cool independent venues (speakeasy bars, unique microbreweries, niche food halls, rooftop spaces)
+4. Cultural/Exhibitions: Temporary art exhibitions, photogenic museum installations, interactive galleries
 
-Return ONLY valid, verified activities with complete information.`;
+STRICT EXCLUSIONS - NEVER SUGGEST:
+❌ Chain supermarkets, banks, basic high-street restaurants
+❌ Standard tourist traps (Big Ben, London Eye unless there's something unique)
+❌ Generic parks without special events
+❌ Hotels or accommodations
+❌ Routine, functional, or purely convenience locations
+❌ Anything boring or predictable
 
-    const userPrompt = `Find 10 real activities near coordinates ${lat}, ${lng} (within ${radius}km radius).
+REQUIRED QUALITIES:
+✅ Unique and memorable experiences
+✅ Instagram-worthy or conversation-starter venues
+✅ Activities that spark excitement and curiosity
+✅ Places locals actually recommend to friends
+✅ Novel, experiential, and engaging
+✅ Real locations with exact addresses and coordinates
 
-Context:
-- Date: ${currentDate}
-- Time: ${currentTime}
+TONE: Enthusiastic, inspiring, makes people want to go immediately
+
+SCORING (0-100%, be critical):
+- Uniqueness & Experience Factor (0-35%): How special and memorable
+- Preference match (0-25%): Matches user interests
+- Time & Atmosphere fit (0-20%): Perfect for this time/date
+- Budget & Value (0-10%): Worth the price
+- Proximity (0-10%): Reasonable distance
+
+Focus on EXPERIENCES over places. Make every suggestion exciting.`;
+
+    const userPrompt = `Curate 10 EXCEPTIONAL and UNIQUE experiences in London near ${lat}, ${lng} (within ${radius}km).
+
+🎯 Context:
+- Date: ${currentDate} | Time: ${currentTime}
 - Budget: £0-£${budget}
-- User preferences: ${userPreferences.length > 0 ? userPreferences.join(', ') : 'varied activities'}
-- User location: ${lat}, ${lng}
+- Seeking: ${userPreferences.length > 0 ? userPreferences.join(', ') : 'exciting, memorable experiences'}
+- Looking for: Activities that friends and couples will talk about for weeks
 
-For each activity, provide:
-1. Exact name and type/category
-2. Precise coordinates (latitude, longitude)
-3. Full address
-4. Operating hours or typical duration
-5. Price range (if applicable)
-6. Distance from user (in km)
-7. Estimated travel time by public transport
-8. Realistic match percentage (0-100%) with breakdown of scoring factors
-9. Brief description (1-2 sentences)
-10. Public thumbnail image URL
-11. Why this activity matches the user's context
+🌟 PRIORITY - Find activities like:
+- Pop-up bars, secret speakeasies, rooftop venues with a twist
+- Immersive dining (theatrical restaurants, themed experiences, chef's tables)
+- Interactive art installations, temporary exhibitions, photogenic galleries
+- Unique escape rooms, VR experiences, interactive theatre
+- Seasonal markets with a unique angle, food festivals, night markets
+- Hidden gems: indie breweries, quirky cocktail bars, unusual food halls
+- Special events: live music in unusual venues, comedy in unique spaces
+- Unconventional tours: street art walks, food tours, secret history tours
 
-Focus on:
-- Museums, galleries, parks, attractions, entertainment venues
-- Active experiences (sports, activities, outdoor)
-- Cultural venues (theatres, cinemas, concert halls)
-- Unique local experiences
-- Actually OPEN at the specified time
+Each activity MUST have:
+1. **Catchy Title**: Make it sound irresistible (e.g., "Moonlit Rooftop Cocktails at Secret Garden Bar")
+2. **Experience Description**: 2-3 sentences that sell the experience, not just describe the place
+3. **Category**: Type of experience (e.g., "Hidden Bar", "Immersive Dining", "Pop-Up Event")
+4. **Area**: General location (Shoreditch, Covent Garden, South Bank, etc.)
+5. **Exact coordinates** and **full address**
+6. **What makes it special**: The unique selling point
+7. **Vibe**: The atmosphere (e.g., "Instagram heaven", "Date night magic", "Friend group energy")
+8. **Time details**: When it's open/happening
+9. **Price**: Honest pricing
+10. **Match score**: Realistic 0-100% based on uniqueness + user preferences + time + budget
+11. **High-quality thumbnail image**
 
-Exclude:
-- Hotels and accommodations
-- Generic or unnamed locations
-- Activities that are closed at this time
-- Anything without a verifiable address
+❌ ABSOLUTELY DO NOT INCLUDE:
+- Generic chain restaurants or cafes
+- Standard museums without special exhibitions
+- Basic parks (unless there's an event)
+- Tourist clichés without a unique angle
+- Anything boring, corporate, or routine
+- Hotels or accommodation
 
-Be realistic with match scores - consider time, weather, budget, and distance.`;
+✅ MAKE IT EXCITING:
+- Use enthusiastic, inspiring language
+- Focus on the EXPERIENCE, not just the place
+- Highlight what makes it Instagram-worthy or memorable
+- Be specific about WHY it's cool
+- Real London insider knowledge
+
+Current real-time context: ${currentDate} at ${currentTime} - suggest things actually happening NOW or soon.
+
+Remember: We want activities that make people say "Oh wow, I didn't know that existed!" not "Yeah, that's just a normal [place]".`;
 
     console.log('Calling Perplexity API for activity generation...');
 
@@ -159,12 +187,15 @@ Be realistic with match scores - consider time, weather, budget, and distance.`;
                   items: {
                     type: 'object',
                     properties: {
-                      name: { type: 'string', description: 'Activity name' },
-                      category: { type: 'string', description: 'Activity category/type' },
+                      name: { type: 'string', description: 'Catchy, irresistible title' },
+                      category: { type: 'string', description: 'Type of experience' },
+                      area: { type: 'string', description: 'General London area (e.g., Shoreditch)' },
                       latitude: { type: 'number', description: 'Latitude coordinate' },
                       longitude: { type: 'number', description: 'Longitude coordinate' },
                       address: { type: 'string', description: 'Full street address' },
-                      description: { type: 'string', description: 'Brief description' },
+                      description: { type: 'string', description: '2-3 sentences selling the experience' },
+                      what_makes_it_special: { type: 'string', description: 'Unique selling point' },
+                      vibe: { type: 'string', description: 'Atmosphere (e.g., "Date night magic")' },
                       start_time: { type: 'string', description: 'Opening time or start time' },
                       end_time: { type: 'string', description: 'Closing time or end time' },
                       duration_hours: { type: 'number', description: 'Typical visit duration in hours' },
@@ -172,19 +203,18 @@ Be realistic with match scores - consider time, weather, budget, and distance.`;
                       distance_km: { type: 'number', description: 'Distance from user in km' },
                       travel_time_minutes: { type: 'number', description: 'Travel time by public transport' },
                       match_percentage: { type: 'number', description: 'Overall match 0-100', minimum: 0, maximum: 100 },
-                      preference_score: { type: 'number', description: 'Preference match 0-30', minimum: 0, maximum: 30 },
-                      time_fit_score: { type: 'number', description: 'Time appropriateness 0-20', minimum: 0, maximum: 20 },
-                      weather_score: { type: 'number', description: 'Weather suitability 0-15', minimum: 0, maximum: 15 },
-                      budget_score: { type: 'number', description: 'Budget fit 0-15', minimum: 0, maximum: 15 },
+                      uniqueness_score: { type: 'number', description: 'Uniqueness & experience 0-35', minimum: 0, maximum: 35 },
+                      preference_score: { type: 'number', description: 'Preference match 0-25', minimum: 0, maximum: 25 },
+                      time_fit_score: { type: 'number', description: 'Time & atmosphere 0-20', minimum: 0, maximum: 20 },
+                      budget_score: { type: 'number', description: 'Budget & value 0-10', minimum: 0, maximum: 10 },
                       proximity_score: { type: 'number', description: 'Distance score 0-10', minimum: 0, maximum: 10 },
-                      duration_score: { type: 'number', description: 'Duration fit 0-10', minimum: 0, maximum: 10 },
-                      reasoning: { type: 'string', description: 'Why this activity matches' },
-                      thumbnail_url: { type: 'string', description: 'Public image URL' },
+                      reasoning: { type: 'string', description: 'Why this is exciting and matches user' },
+                      thumbnail_url: { type: 'string', description: 'High-quality image URL' },
                     },
                     required: [
-                      'name', 'category', 'latitude', 'longitude', 'address',
-                      'description', 'match_percentage', 'distance_km',
-                      'travel_time_minutes', 'reasoning', 'thumbnail_url'
+                      'name', 'category', 'area', 'latitude', 'longitude', 'address',
+                      'description', 'what_makes_it_special', 'vibe', 'match_percentage',
+                      'distance_km', 'travel_time_minutes', 'reasoning', 'thumbnail_url'
                     ],
                     additionalProperties: false
                   }
@@ -241,6 +271,10 @@ Be realistic with match scores - consider time, weather, budget, and distance.`;
         start_time: activity.start_time || '09:00',
         end_time: activity.end_time || '18:00',
         duration_hours: activity.duration_hours || 2,
+        area: activity.area || 'Central London',
+        what_makes_it_special: activity.what_makes_it_special || activity.reasoning,
+        vibe: activity.vibe || 'Exciting experience',
+        uniqueness_score: activity.uniqueness_score || 0,
       };
     });
 
