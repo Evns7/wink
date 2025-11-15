@@ -49,27 +49,28 @@ serve(async (req) => {
     const timezoneData = await timezoneResponse.json();
     console.log('Timezone data received:', JSON.stringify(timezoneData));
 
-    // Get current time for the detected timezone
-    const timeUrl = `https://worldtimeapi.org/api/timezone/${timezoneData.timeZone}`;
+    // timeapi.io already provides current time, no need for second API call
+    // Extract UTC offset hours from seconds
+    const offsetSeconds = timezoneData.currentUtcOffset?.seconds || 0;
+    const offsetHours = offsetSeconds / 3600;
+    const offsetSign = offsetHours >= 0 ? '+' : '-';
+    const offsetFormatted = `${offsetSign}${Math.abs(offsetHours).toString().padStart(2, '0')}:00`;
     
-    console.log(`Calling time API: ${timeUrl}`);
-    
-    const timeResponse = await fetch(timeUrl);
-    
-    if (!timeResponse.ok) {
-      console.error(`Time API error: ${timeResponse.status}`);
-      throw new Error(`Failed to fetch time: ${timeResponse.statusText}`);
-    }
+    // Get abbreviation from DST info or calculate from timezone name
+    const abbreviation = timezoneData.isDayLightSavingActive && timezoneData.dstInterval?.dstName
+      ? timezoneData.dstInterval.dstName
+      : timezoneData.timeZone.split('/').pop()?.substring(0, 3).toUpperCase() || 'UTC';
 
-    const timeData = await timeResponse.json();
-    console.log('Time data received');
+    // Convert to Unix timestamp (seconds)
+    const datetime = timezoneData.currentLocalTime;
+    const unixtime = Math.floor(new Date(datetime).getTime() / 1000);
 
     const response: TimezoneResponse = {
-      timezone: timeData.timezone,
-      datetime: timeData.datetime,
-      utc_offset: timeData.utc_offset,
-      abbreviation: timeData.abbreviation,
-      unixtime: timeData.unixtime,
+      timezone: timezoneData.timeZone,
+      datetime: datetime,
+      utc_offset: offsetFormatted,
+      abbreviation: abbreviation,
+      unixtime: unixtime,
     };
 
     return new Response(
