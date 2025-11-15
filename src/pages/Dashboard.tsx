@@ -268,29 +268,6 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Recommended Activities */}
-        <div className="mb-8">
-          {activities.length > 0 && (
-            <>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-3xl font-bold">Nearby Activities</h2>
-                <Link to="/make-plans">
-                  <Button className="rounded-xl">
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Make Plans with Friends
-                  </Button>
-                </Link>
-              </div>
-
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activities.slice(0, 6).map((activity) => (
-                  <ActivityCard key={activity.id} activity={activity} />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
         {/* Quick Actions */}
         <Card className="glass">
           <CardContent className="pt-6">
