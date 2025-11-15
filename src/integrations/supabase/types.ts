@@ -369,6 +369,7 @@ export type Database = {
           home_lng: number | null
           home_location: unknown
           id: string
+          nickname: string | null
           sleep_time: string | null
           updated_at: string | null
           wake_time: string | null
@@ -382,6 +383,7 @@ export type Database = {
           home_lng?: number | null
           home_location?: unknown
           id: string
+          nickname?: string | null
           sleep_time?: string | null
           updated_at?: string | null
           wake_time?: string | null
@@ -395,6 +397,7 @@ export type Database = {
           home_lng?: number | null
           home_location?: unknown
           id?: string
+          nickname?: string | null
           sleep_time?: string | null
           updated_at?: string | null
           wake_time?: string | null
