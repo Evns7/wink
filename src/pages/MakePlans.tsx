@@ -19,6 +19,7 @@ interface Activity {
   distance: number;
   lat: number;
   lng: number;
+  rating?: number;
   match_score?: number;
   totalScore?: number;
   score_breakdown?: {
@@ -174,7 +175,27 @@ export default function MakePlans() {
       const recommendations = data.recommendations || [];
       const limitedRecommendations = recommendations.slice(0, 5);
 
-      const newSuggestions: ActivitySuggestion[] = limitedRecommendations.map((rec: any) => ({
+      // Generate ratings for activities using Perplexity
+      let activitiesWithRatings = limitedRecommendations;
+      try {
+        const { data: ratingsData, error: ratingsError } = await supabase.functions.invoke(
+          'generate-activity-ratings',
+          {
+            body: {
+              activities: limitedRecommendations,
+            },
+          }
+        );
+
+        if (!ratingsError && ratingsData?.activities) {
+          activitiesWithRatings = ratingsData.activities;
+        }
+      } catch (ratingsError) {
+        console.error('Failed to generate ratings:', ratingsError);
+        // Continue with activities without enhanced ratings
+      }
+
+      const newSuggestions: ActivitySuggestion[] = activitiesWithRatings.map((rec: any) => ({
         activity: {
           id: rec.id,
           name: rec.name,
@@ -184,6 +205,7 @@ export default function MakePlans() {
           distance: rec.distance || 0,
           lat: rec.lat,
           lng: rec.lng,
+          rating: rec.rating || 4.0,
           match_score: rec.match_score,
           totalScore: rec.total_score || rec.match_score,
           score_breakdown: rec.score_breakdown,

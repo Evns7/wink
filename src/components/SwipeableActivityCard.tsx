@@ -13,6 +13,7 @@ interface Activity {
   address: string;
   price_level: number;
   distance: number;
+  rating?: number;
   match_score?: number;
   totalScore?: number;
   score_breakdown?: {
@@ -197,6 +198,12 @@ export const SwipeableActivityCard = ({
             <div className="flex items-center gap-2">
               <span className="text-sm">📍 {activity.distance?.toFixed(1)} km away</span>
             </div>
+
+            {activity.rating && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm">⭐ {activity.rating.toFixed(1)} rating</span>
+              </div>
+            )}
           </div>
 
           {/* AI Reasoning Section */}
@@ -231,7 +238,7 @@ export const SwipeableActivityCard = ({
 
         {/* Swipe indicators */}
         <motion.div
-          className="absolute top-1/2 left-8 -translate-y-1/2"
+          className="absolute top-1/2 left-4 -translate-y-1/2"
           style={{ opacity: useTransform(x, [0, -100], [0, 1]) }}
         >
           <div className="bg-destructive text-destructive-foreground p-4 rounded-full">
@@ -240,7 +247,7 @@ export const SwipeableActivityCard = ({
         </motion.div>
 
         <motion.div
-          className="absolute top-1/2 right-8 -translate-y-1/2"
+          className="absolute top-1/2 right-4 -translate-y-1/2"
           style={{ opacity: useTransform(x, [0, 100], [0, 1]) }}
         >
           <div className="bg-primary text-primary-foreground p-4 rounded-full">
