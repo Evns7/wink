@@ -17,6 +17,7 @@ interface Activity {
   distance: number;
   address: string;
   price_level: number;
+  google_maps_link?: string;
 }
 
 interface WildcardRecommendationsProps {
@@ -232,14 +233,26 @@ export const WildcardRecommendations = ({ trigger }: WildcardRecommendationsProp
                       </div>
                     </div>
 
-                    <Button
-                      onClick={() => scheduleActivity(activity)}
-                      className="w-full rounded-xl"
-                      size="lg"
-                    >
-                      <Calendar className="h-4 w-4 mr-2" />
-                      Schedule for {formatScheduledTime()}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => scheduleActivity(activity)}
+                        className="flex-1 rounded-xl"
+                        size="lg"
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Schedule for {formatScheduledTime()}
+                      </Button>
+                      {activity.google_maps_link && (
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          onClick={() => window.open(activity.google_maps_link, '_blank')}
+                          className="rounded-xl"
+                        >
+                          <Navigation className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>

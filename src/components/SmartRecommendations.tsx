@@ -37,6 +37,7 @@ interface Activity {
   time?: string;
   url?: string;
   link?: string;
+  google_maps_link?: string;
   lat?: number;
   lng?: number;
   source?: string;
@@ -429,16 +430,29 @@ export const SmartRecommendations = () => {
                           </span>
                         )}
                       </div>
-                      {(activity.url || activity.link) && (
-                        <a 
-                          href={activity.url || activity.link} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary hover:underline mt-2 inline-flex items-center gap-1 font-sans"
-                        >
-                          View event details →
-                        </a>
-                      )}
+                      <div className="flex gap-2 mt-2">
+                        {(activity.url || activity.link) && (
+                          <a 
+                            href={activity.url || activity.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-sans"
+                          >
+                            View event details →
+                          </a>
+                        )}
+                        {activity.google_maps_link && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(activity.google_maps_link, '_blank')}
+                            className="text-xs"
+                          >
+                            <Navigation className="h-3 w-3 mr-1" />
+                            View on Map
+                          </Button>
+                        )}
+                      </div>
 
                       {/* Why recommended? - Expandable */}
                       <Button
