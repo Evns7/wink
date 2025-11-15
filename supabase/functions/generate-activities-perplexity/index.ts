@@ -101,14 +101,21 @@ REQUIRED QUALITIES:
 
 TONE: Enthusiastic, inspiring, makes people want to go immediately
 
-SCORING (0-100%, be critical):
-- Uniqueness & Experience Factor (0-35%): How special and memorable
-- Preference match (0-25%): Matches user interests
-- Time & Atmosphere fit (0-20%): Perfect for this time/date
-- Budget & Value (0-10%): Worth the price
-- Proximity (0-10%): Reasonable distance
+SCORING (0-100%, be critical and ACCURATE):
+CRITICAL RULE: The sum of the 5 component scores below MUST equal exactly 0-100. This is mandatory.
 
-IMPORTANT: Calculate each component score carefully. The sum of all 5 component scores equals the overall match percentage (0-100).
+Component Scores (MUST sum to 0-100):
+- uniqueness_score (0-35): How special and memorable the experience is
+- preference_score (0-25): How well it matches user's stated interests
+- time_fit_score (0-20): How perfect it is for this time/date/atmosphere
+- budget_score (0-10): Value for money within user's budget
+- proximity_score (0-10): How convenient the location is
+
+Example calculation:
+If uniqueness_score=28, preference_score=20, time_fit_score=15, budget_score=8, proximity_score=7
+Then match_percentage = 28+20+15+8+7 = 78
+
+VERIFY: Always check that uniqueness + preference + time_fit + budget + proximity = match_percentage (0-100)
 
 Focus on EXPERIENCES over places. Make every suggestion exciting.`;
 
@@ -143,13 +150,16 @@ Each activity MUST have:
 9. **💰 PRICE (CRITICAL)**: Exact price in £ - be specific (e.g., £15 entry, £35 dinner, £0 for free events)
 10. **📍 DISTANCE (CRITICAL)**: Precise distance in km from coordinates ${lat}, ${lng} - calculate accurately
 11. **⏱️ TRAVEL TIME (CRITICAL)**: Realistic travel time in minutes by public transport from ${lat}, ${lng} - be accurate
-12. **Component Scores (CRITICAL - must add up to 0-100)**:
+12. **Component Scores (MANDATORY - must sum exactly to match_percentage 0-100)**:
    - uniqueness_score (0-35): How special/memorable the experience is
    - preference_score (0-25): How well it matches stated preferences
    - time_fit_score (0-20): How well it fits the time/date/atmosphere
    - budget_score (0-10): Value for money within budget
    - proximity_score (0-10): How convenient the location is
-   NOTE: These 5 scores should sum to create the overall match (0-100)
+13. **match_percentage (0-100)**: MUST equal the exact sum of the 5 component scores above
+   
+   CRITICAL: Verify math before outputting each activity:
+   match_percentage = uniqueness_score + preference_score + time_fit_score + budget_score + proximity_score
 
 ❌ ABSOLUTELY DO NOT INCLUDE:
 - Generic chain restaurants or cafes
@@ -227,13 +237,14 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
                       time_fit_score: { type: 'number', description: 'Time & atmosphere fit (0-20)', minimum: 0, maximum: 20 },
                       budget_score: { type: 'number', description: 'Budget & value (0-10)', minimum: 0, maximum: 10 },
                       proximity_score: { type: 'number', description: 'Distance convenience (0-10)', minimum: 0, maximum: 10 },
+                      match_percentage: { type: 'number', description: 'MUST equal sum of all 5 component scores (0-100)', minimum: 0, maximum: 100 },
                       reasoning: { type: 'string', description: 'Why this is exciting and matches user' },
                     },
                     required: [
                       'name', 'category', 'area', 'latitude', 'longitude', 'address',
                       'description', 'what_makes_it_special', 'vibe', 
                       'uniqueness_score', 'preference_score', 'time_fit_score', 'budget_score', 'proximity_score',
-                      'distance_km', 'travel_time_minutes', 'reasoning'
+                      'match_percentage', 'distance_km', 'travel_time_minutes', 'reasoning'
                     ],
                     additionalProperties: false
                   }
@@ -286,7 +297,7 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
 
     // Validate and normalize scores for each activity
     const activitiesWithMaps = activities.map((activity: any) => {
-      // Calculate match_percentage from component scores (should sum to 100)
+      // Calculate match_percentage from component scores (must sum to 0-100)
       const componentSum = 
         (activity.uniqueness_score || 0) +
         (activity.preference_score || 0) +
@@ -294,8 +305,17 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
         (activity.budget_score || 0) +
         (activity.proximity_score || 0);
       
-      // Use calculated sum or provided match_percentage, ensure 0-100
-      const match_percentage = Math.min(100, Math.max(0, componentSum || activity.match_percentage || 50));
+      // Verify Perplexity's match_percentage matches the component sum
+      let match_percentage = activity.match_percentage || componentSum;
+      
+      // If there's a mismatch, recalculate from components (they're the source of truth)
+      if (Math.abs(match_percentage - componentSum) > 1) {
+        console.warn(`Match percentage mismatch for ${activity.name}: stated ${match_percentage} vs calculated ${componentSum}, using calculated`);
+        match_percentage = componentSum;
+      }
+      
+      // Ensure final score is 0-100
+      match_percentage = Math.min(100, Math.max(0, match_percentage));
       
       const encodedName = encodeURIComponent(activity.name);
       
