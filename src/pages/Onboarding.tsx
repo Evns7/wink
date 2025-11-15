@@ -18,7 +18,7 @@ const Onboarding = () => {
   const [preferences, setPreferences] = useState({
     homeAddress: "",
     nickname: "",
-    selectedHobbies: [] as string[],
+    hobbyScores: {} as { [key: string]: number },
     budgetMin: 0,
     budgetMax: 50,
     wakeTime: "07:00",
@@ -149,11 +149,11 @@ const Onboarding = () => {
 
       if (profileError) throw profileError;
 
-      // Map selected hobbies to preferences with score 10, others to 0
+      // Save hobby scores (1-5 scale)
       const prefsToSave = hobbyOptions.map(hobby => ({
         user_id: userId,
         category: hobby.id,
-        score: preferences.selectedHobbies.includes(hobby.id) ? 10 : 0,
+        score: preferences.hobbyScores[hobby.id] || 0,
       }));
 
       const { error: prefsError } = await supabase
@@ -180,16 +180,14 @@ const Onboarding = () => {
     }
   };
 
-  const toggleHobby = (hobbyId: string) => {
-    setPreferences(prev => {
-      const selected = prev.selectedHobbies;
-      if (selected.includes(hobbyId)) {
-        return { ...prev, selectedHobbies: selected.filter(id => id !== hobbyId) };
-      } else if (selected.length < 5) {
-        return { ...prev, selectedHobbies: [...selected, hobbyId] };
-      }
-      return prev;
-    });
+  const updateHobbyScore = (hobbyId: string, score: number) => {
+    setPreferences(prev => ({
+      ...prev,
+      hobbyScores: {
+        ...prev.hobbyScores,
+        [hobbyId]: score,
+      },
+    }));
   };
 
   const handleBack = () => {
@@ -202,12 +200,12 @@ const Onboarding = () => {
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold">
             {step === 1 && "Welcome to Wink! 👋"}
-            {step === 2 && "Pick Your Top 5 Activities"}
+            {step === 2 && "Rate Your Activity Preferences"}
             {step === 3 && "Daily Schedule & Budget"}
           </CardTitle>
           <CardDescription className="text-base">
             {step === 1 && "Let's set up your profile so we can give you the best recommendations"}
-            {step === 2 && "Choose the activities you love most - select exactly 5!"}
+            {step === 2 && "Rate each activity from 1-5 (1 = not interested, 5 = love it!)"}
             {step === 3 && "Help us understand your daily routine and spending"}
           </CardDescription>
         </CardHeader>
@@ -260,37 +258,31 @@ const Onboarding = () => {
 
           {/* Step 2: Hobbies Selection */}
           {step === 2 && (
-            <div className="space-y-4">
-              <p className="text-muted-foreground font-sans">
-                Select your top 5 favorite activities ({preferences.selectedHobbies.length}/5 selected)
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {hobbyOptions.map((hobby) => {
-                  const isSelected = preferences.selectedHobbies.includes(hobby.id);
-                  return (
-                    <button
-                      key={hobby.id}
-                      type="button"
-                      onClick={() => toggleHobby(hobby.id)}
-                      className={`
-                        p-4 rounded-xl border-2 transition-all text-left font-sans
-                        ${isSelected 
-                          ? 'border-primary bg-primary/10 shadow-panel scale-105' 
-                          : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                        }
-                      `}
-                    >
-                      <div className="text-3xl mb-2">{hobby.icon}</div>
-                      <div className="font-medium">{hobby.label}</div>
-                    </button>
-                  );
-                })}
-              </div>
-              {preferences.selectedHobbies.length === 5 && (
-                <p className="text-sm text-primary text-center font-medium font-sans">
-                  Perfect! You've selected 5 activities. ✨
-                </p>
-              )}
+            <div className="space-y-6">
+              {hobbyOptions.map((hobby) => {
+                const score = preferences.hobbyScores[hobby.id] || 0;
+                return (
+                  <div key={hobby.id} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{hobby.icon}</span>
+                        <Label className="text-base font-medium">{hobby.label}</Label>
+                      </div>
+                      <span className="text-sm font-medium text-muted-foreground min-w-[3rem] text-right">
+                        {score === 0 ? "Not rated" : `${score}/5`}
+                      </span>
+                    </div>
+                    <Slider
+                      value={[score]}
+                      onValueChange={(values) => updateHobbyScore(hobby.id, values[0])}
+                      min={0}
+                      max={5}
+                      step={1}
+                      className="w-full"
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
 
