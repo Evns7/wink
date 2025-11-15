@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.create-calendar-event]
 verify_jwt = true
+
+[functions.weather]
+verify_jwt = false
