@@ -73,7 +73,7 @@ serve(async (req) => {
       }).join('\n');
 
       const overpassQuery = `
-        [out:json][timeout:15];
+        [out:json][timeout:25];
         (
           ${queries}
         );
@@ -83,11 +83,17 @@ serve(async (req) => {
       console.log(`Attempt ${attempt}: Fetching from Overpass API with radius ${searchRadius}m...`);
       
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second client-side timeout
+
         const response = await fetch('https://overpass-api.de/api/interpreter', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `data=${encodeURIComponent(overpassQuery)}`,
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -98,10 +104,10 @@ serve(async (req) => {
         console.error(`Attempt ${attempt} failed:`, error);
         
         // Retry with smaller radius if we have attempts left
-        if (attempt < 3 && searchRadius > 500) {
+        if (attempt < 2 && searchRadius > 500) {
           const newRadius = Math.floor(searchRadius / 2);
           console.log(`Retrying with smaller radius: ${newRadius}m`);
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s between retries
+          await new Promise(resolve => setTimeout(resolve, 1000));
           return fetchWithRetry(newRadius, attempt + 1);
         }
         
@@ -109,7 +115,40 @@ serve(async (req) => {
       }
     }
 
-    const data = await fetchWithRetry(radius);
+    let data;
+    try {
+      data = await fetchWithRetry(radius);
+    } catch (error) {
+      console.error('Overpass API failed, falling back to database activities:', error);
+      
+      // Fallback: return existing activities from database within radius
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+
+      const { data: existingActivities, error: dbError } = await supabase
+        .rpc('nearby_activities', {
+          user_lat: lat,
+          user_lng: lng,
+          radius_km: radius / 1000
+        });
+
+      if (dbError) {
+        throw new Error(`Both Overpass and database failed: ${dbError.message}`);
+      }
+
+      console.log(`Returning ${existingActivities?.length || 0} cached activities from database`);
+      
+      return new Response(
+        JSON.stringify({ 
+          activities: existingActivities || [],
+          cached: true 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log(`Found ${data.elements?.length || 0} POIs`);
 
     // Transform and save to database

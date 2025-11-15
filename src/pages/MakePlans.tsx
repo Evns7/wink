@@ -4,14 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { SwipeableActivityCard } from "@/components/SwipeableActivityCard";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles, Calendar } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/Header";
-
-interface Friend {
-  id: string;
-  email: string;
-}
+import { useQuery } from "@tanstack/react-query";
 
 interface Activity {
   id: string;
@@ -21,6 +17,17 @@ interface Activity {
   price_level: number;
   distance: number;
   match_score?: number;
+  totalScore?: number;
+  score_breakdown?: {
+    preference: number;
+    time_fit: number;
+    weather: number;
+    budget: number;
+    proximity: number;
+    duration: number;
+  };
+  ai_reasoning?: string | null;
+  insider_tip?: string | null;
 }
 
 interface ActivitySuggestion {
@@ -28,6 +35,14 @@ interface ActivitySuggestion {
   friendId: string;
   friendEmail: string;
   suggestedTime: string;
+  context?: {
+    score_breakdown?: any;
+    total_score?: number;
+    weather_conditions?: any;
+    time_block?: any;
+    ai_reasoning?: string | null;
+    insider_tip?: string | null;
+  };
 }
 
 export default function MakePlans() {
@@ -48,12 +63,11 @@ export default function MakePlans() {
     }
   };
 
-  const generateSuggestions = async () => {
-    setIsGenerating(true);
-    try {
-      // Get user's friends
+  const { refetch: refetchSuggestions } = useQuery({
+    queryKey: ['activity-suggestions'],
+    queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) throw new Error('Not authenticated');
 
       const { data: friendships } = await supabase
         .from('friendships')
@@ -62,25 +76,22 @@ export default function MakePlans() {
         .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
 
       if (!friendships || friendships.length === 0) {
-        toast.error("You need friends to make plans! Add some friends first.");
-        return;
+        throw new Error('No friends found');
       }
 
-      // Extract friend IDs
       const friendIds = friendships.map(f => 
         f.user_id === user.id ? f.friend_id : f.user_id
       );
 
-      // Analyze availability with friends
       const startDate = new Date();
       const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 7); // Next 7 days
+      endDate.setDate(endDate.getDate() + 7);
 
       const { data: availabilityData, error: availabilityError } = await supabase.functions.invoke(
         'analyze-group-availability',
         {
           body: {
-            friendIds: friendIds.slice(0, 3), // Limit to 3 friends for now
+            friendIds: friendIds.slice(0, 3),
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
           },
@@ -91,20 +102,19 @@ export default function MakePlans() {
 
       const freeBlocks = availabilityData.freeBlocks || [];
       if (freeBlocks.length === 0) {
-        toast.info("No common free time found with friends in the next week.");
-        return;
+        throw new Error('No common free time found');
       }
 
-      // Get activity recommendations for each free block
       const allSuggestions: ActivitySuggestion[] = [];
 
-      for (const block of freeBlocks.slice(0, 5)) { // Take first 5 time blocks
+      for (const block of freeBlocks.slice(0, 5)) {
         const { data: recommendationData, error: recommendationError } = await supabase.functions.invoke(
           'smart-activity-recommendations',
           {
             body: {
               freeBlock: block,
-              weather: { temp: 20, condition: 'clear' }, // Mock weather for now
+              friendIds: friendIds.slice(0, 3),
+              weather: { temp: 15, isRaining: false },
             },
           }
         );
@@ -116,13 +126,20 @@ export default function MakePlans() {
 
         const activities = recommendationData.recommendations || [];
         
-        // Create suggestions with each friend for this time block
         const blockSuggestions = activities.slice(0, 2).flatMap((activity: Activity) => 
           friendIds.slice(0, 2).map((friendId: string) => ({
             activity,
             friendId,
-            friendEmail: `Friend ${friendId.substring(0, 8)}`, // Placeholder
+            friendEmail: `Friend ${friendId.substring(0, 8)}`,
             suggestedTime: block.start,
+            context: {
+              score_breakdown: activity.score_breakdown,
+              total_score: activity.totalScore,
+              weather_conditions: { temp: 15, isRaining: false },
+              time_block: { start: block.start, end: block.end },
+              ai_reasoning: activity.ai_reasoning,
+              insider_tip: activity.insider_tip,
+            },
           }))
         );
 
@@ -130,13 +147,39 @@ export default function MakePlans() {
       }
 
       if (allSuggestions.length === 0) {
-        toast.info("No activity suggestions available right now.");
+        throw new Error('No activity suggestions available');
+      }
+
+      return allSuggestions;
+    },
+    enabled: false,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+
+  const generateSuggestions = async () => {
+    setIsGenerating(true);
+    try {
+      const result = await refetchSuggestions();
+      
+      if (result.error) {
+        if (result.error.message === 'No friends found') {
+          toast.error("You need friends to make plans! Add some friends first.");
+        } else if (result.error.message === 'No common free time found') {
+          toast.info("No common free time found with friends in the next week.");
+        } else if (result.error.message === 'No activity suggestions available') {
+          toast.info("No activity suggestions available right now.");
+        } else {
+          toast.error("Failed to generate suggestions");
+        }
         return;
       }
 
-      setSuggestions(allSuggestions);
-      setCurrentIndex(0);
-      toast.success(`Found ${allSuggestions.length} activity suggestions!`);
+      if (result.data) {
+        setSuggestions(result.data);
+        setCurrentIndex(0);
+        toast.success(`Found ${result.data.length} activity suggestions!`);
+      }
     } catch (error) {
       console.error('Error generating suggestions:', error);
       toast.error("Failed to generate suggestions");
@@ -160,6 +203,7 @@ export default function MakePlans() {
           activityId: suggestion.activity.id,
           response,
           suggestedTime: suggestion.suggestedTime,
+          context: suggestion.context,
         },
       });
 
@@ -217,7 +261,7 @@ export default function MakePlans() {
                 </>
               ) : (
                 <>
-                  <Calendar className="w-4 h-4 mr-2" />
+                  <Sparkles className="w-4 h-4 mr-2" />
                   Generate Suggestions
                 </>
               )}
