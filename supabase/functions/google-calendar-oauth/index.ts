@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, code, redirectUri } = await req.json();
+    const { action, code } = await req.json();
     
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -39,9 +39,14 @@ serve(async (req) => {
 
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
     const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+    const redirectUrl = Deno.env.get('GOOGLE_REDIRECT_URL');
 
     if (!clientId || !clientSecret) {
       throw new Error('Google OAuth credentials not configured');
+    }
+
+    if (!redirectUrl) {
+      throw new Error('Google redirect URL not configured');
     }
 
     // Generate OAuth URL
@@ -53,7 +58,7 @@ serve(async (req) => {
 
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
         `client_id=${clientId}&` +
-        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+        `redirect_uri=${encodeURIComponent(redirectUrl)}&` +
         `response_type=code&` +
         `scope=${encodeURIComponent(scopes)}&` +
         `access_type=offline&` +
@@ -74,7 +79,7 @@ serve(async (req) => {
           code,
           client_id: clientId,
           client_secret: clientSecret,
-          redirect_uri: redirectUri,
+          redirect_uri: redirectUrl,
           grant_type: 'authorization_code',
         }),
       });

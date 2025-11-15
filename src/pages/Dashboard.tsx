@@ -86,9 +86,8 @@ const Dashboard = () => {
 
   const handleConnectCalendar = async () => {
     try {
-      const redirectUri = `${window.location.origin}/auth`;
       const { data, error } = await supabase.functions.invoke('google-calendar-oauth', {
-        body: { action: 'get_auth_url', redirectUri }
+        body: { action: 'get_auth_url' }
       });
 
       if (error) throw error;
