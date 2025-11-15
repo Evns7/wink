@@ -479,7 +479,7 @@ export const SmartRecommendations = () => {
                             className="mt-3 space-y-2 p-3 bg-muted/20 rounded-lg"
                           >
                             <p className="text-xs font-medium mb-2">Score Breakdown:</p>
-                            {Object.entries(activity.matchFactors).map(([key, value]) => (
+                            {activity.matchFactors && Object.entries(activity.matchFactors).map(([key, value]) => (
                               <div key={key} className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
                                   <span className="flex items-center gap-1">
