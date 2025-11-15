@@ -95,9 +95,28 @@ serve(async (req) => {
       });
     }
 
-    // If user accepted, check for a match
+    // If user accepted, create an invitation
     let isMatch = false;
     if (response === 'accept') {
+      // Create invitation in activity_invitations table
+      const { error: invitationError } = await supabaseClient
+        .from('activity_invitations')
+        .insert({
+          inviter_id: user.id,
+          invitee_id: friendId,
+          activity_id: activityId,
+          suggested_time: suggestedTime,
+          status: 'pending',
+          message: null,
+        });
+
+      if (invitationError) {
+        console.error('Error creating invitation:', invitationError);
+      } else {
+        console.log('Invitation created successfully');
+      }
+
+      // Check if friend also accepted (match)
       const { data: matchData, error: matchError } = await supabaseClient
         .rpc('check_activity_match', {
           p_user_id: user.id,
@@ -113,9 +132,18 @@ serve(async (req) => {
         console.log(`Match status: ${isMatch}`);
       }
 
-      // If it's a match, update both swipes and create calendar events
+      // If it's a match, update invitations and create calendar events
       if (isMatch) {
         const now = new Date().toISOString();
+
+        // Update all invitations for this activity/time to matched
+        await supabaseClient
+          .from('activity_invitations')
+          .update({ status: 'matched' })
+          .eq('activity_id', activityId)
+          .eq('suggested_time', suggestedTime)
+          .in('inviter_id', [user.id, friendId])
+          .in('invitee_id', [user.id, friendId]);
         
         // Update both swipes with matched_at timestamp
         const { error: updateError } = await supabaseClient
