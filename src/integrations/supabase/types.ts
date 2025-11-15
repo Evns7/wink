@@ -190,6 +190,80 @@ export type Database = {
         }
         Relationships: []
       }
+      event_attendees: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_attendees_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          allowed_friend_ids: string[] | null
+          created_at: string
+          description: string | null
+          event_date: string
+          event_type: string
+          id: string
+          location: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allowed_friend_ids?: string[] | null
+          created_at?: string
+          description?: string | null
+          event_date: string
+          event_type: string
+          id?: string
+          location?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allowed_friend_ids?: string[] | null
+          created_at?: string
+          description?: string | null
+          event_date?: string
+          event_type?: string
+          id?: string
+          location?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       friendships: {
         Row: {
           created_at: string

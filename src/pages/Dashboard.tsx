@@ -8,6 +8,7 @@ import { Calendar, Sparkles, MapPin, LogOut } from "lucide-react";
 import ActivityCard from "@/components/ActivityCard";
 import WeatherWidget from "@/components/WeatherWidget";
 import { FriendsList } from "@/components/FriendsList";
+import { EventsList } from "@/components/events/EventsList";
 import { SmartRecommendations } from "@/components/SmartRecommendations";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -171,6 +172,16 @@ const Dashboard = () => {
           className="mb-8"
         >
           <FriendsList />
+        </motion.div>
+
+        {/* Events List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="mb-8"
+        >
+          <EventsList />
         </motion.div>
 
         {/* Today's Schedule Preview */}
