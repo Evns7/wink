@@ -267,65 +267,37 @@ serve(async (req) => {
       };
     });
 
-    // Filter activities scoring < 50
-    const filteredActivities = scoredActivities.filter((a: any) => a.totalScore >= 50);
+    // Filter activities scoring >= 40 for more variety
+    const filteredActivities = scoredActivities.filter((a: any) => a.totalScore >= 40);
 
-    // Sort by score and take top 1 (best match for this time slot)
-    const topActivity = filteredActivities
+    // Sort by score and take top 10 (best matches for this time slot)
+    const topActivities = filteredActivities
       .sort((a: any, b: any) => b.totalScore - a.totalScore)
-      .slice(0, 1);
+      .slice(0, 10);
 
-    console.log(`Filtered ${filteredActivities.length} activities scoring >= 50, selected top 1`);
+    console.log(`Filtered ${filteredActivities.length} activities scoring >= 40, selected top ${topActivities.length}`);
 
-    // If we have activities, enhance with Perplexity AI
-    let enhancedActivities = topActivity;
-    if (topActivity.length > 0) {
-      try {
-        const { data: aiData, error: aiError } = await supabase.functions.invoke(
-          'enhance-recommendations-ai',
-          {
-            body: {
-              activities: topActivity.map((a: any) => ({
-                id: a.id,
-                name: a.name,
-                category: a.category,
-                totalScore: a.totalScore,
-                address: a.address,
-                price_level: a.price_level,
-              })),
-              timeSlot: freeBlock ? {
-                start: freeBlock.start,
-                end: freeBlock.end,
-              } : {
-                start: new Date().toISOString(),
-                end: new Date(Date.now() + 3600000).toISOString(),
-              },
-              weather: weather || { temp: 15, isRaining: false },
-              budget: {
-                min: profile.budget_min || 0,
-                max: profile.budget_max || 50,
-              },
-            },
-          }
-        );
-
-        if (aiError) {
-          console.error('AI enhancement error:', aiError);
-        } else if (aiData?.activities) {
-          enhancedActivities = topActivity.map((activity: any) => {
-            const enhanced = aiData.activities.find((a: any) => a.id === activity.id);
-            return enhanced || activity;
-          });
-        }
-      } catch (aiError) {
-        console.error('Failed to enhance with AI:', aiError);
-      }
-    }
+    // Format activities with proper structure
+    const formattedActivities = topActivities.map((activity: any) => {
+      const travelTime = Math.round((activity.distance || 0) * 10); // 10 min per km
+      return {
+        id: activity.id,
+        name: activity.name,
+        category: activity.category,
+        address: activity.address || 'Address not available',
+        price_level: activity.price_level || 1,
+        matchScore: Math.round(activity.totalScore),
+        matchFactors: activity.score_breakdown,
+        travelTimeMinutes: travelTime,
+        distance: activity.distance || 0,
+        isPerfectMatch: activity.totalScore >= 85,
+      };
+    });
 
     return new Response(
       JSON.stringify({ 
-        recommendations: enhancedActivities,
-        total_filtered: filteredActivities.length,
+        recommendations: formattedActivities,
+        totalActivitiesConsidered: allActivities.length,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
