@@ -158,9 +158,13 @@ export const SmartRecommendations = () => {
 
       if (error) throw error;
 
+      const syncedToGoogle = data?.syncedToGoogle;
+      
       toast({
         title: "🎉 Activity scheduled!",
-        description: `${activity.name} added to your calendar`,
+        description: syncedToGoogle 
+          ? `${activity.name} added to your Google Calendar`
+          : `${activity.name} saved to your plans (connect Google Calendar to sync)`,
       });
 
       analyzeAvailability();
@@ -169,7 +173,7 @@ export const SmartRecommendations = () => {
       toast({
         variant: "destructive",
         title: "Failed to schedule",
-        description: "Please try connecting your calendar first.",
+        description: "Could not save the activity. Please try again.",
       });
     }
   };

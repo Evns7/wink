@@ -30,7 +30,7 @@ serve(async (req) => {
     const { title, startTime, endTime, location, description, activityId } = await req.json();
     console.log('Creating calendar event:', { userId: user.id, title, startTime, endTime });
 
-    // Get user's calendar connection
+    // Get user's calendar connection (optional)
     const { data: connection } = await supabase
       .from('calendar_connections')
       .select('*')
@@ -38,81 +38,83 @@ serve(async (req) => {
       .eq('provider', 'google')
       .single();
 
-    if (!connection || !connection.access_token) {
-      return new Response(JSON.stringify({ error: 'Calendar not connected' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    let googleEventId = `local-${Date.now()}`; // Default for non-synced events
+    let syncedToGoogle = false;
+
+    // Only sync to Google Calendar if connected
+    if (connection && connection.access_token) {
+      try {
+        // Create event in Google Calendar
+        const googleEvent = {
+          summary: title,
+          location: location || '',
+          description: description || '',
+          start: {
+            dateTime: startTime,
+            timeZone: 'UTC',
+          },
+          end: {
+            dateTime: endTime,
+            timeZone: 'UTC',
+          },
+        };
+
+        const calendarResponse = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${connection.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(googleEvent),
+          }
+        );
+
+        if (calendarResponse.ok) {
+          const createdEvent = await calendarResponse.json();
+          googleEventId = createdEvent.id;
+          syncedToGoogle = true;
+          console.log('Created Google Calendar event:', createdEvent.id);
+        } else {
+          const errorText = await calendarResponse.text();
+          console.error('Google Calendar API error:', calendarResponse.status, errorText);
+          
+          // If token expired, log but continue with local storage
+          if (calendarResponse.status === 401) {
+            console.log('Access token expired, storing locally only');
+          }
+        }
+      } catch (googleError) {
+        console.error('Error syncing to Google Calendar:', googleError);
+        // Continue with local storage even if Google sync fails
+      }
+    } else {
+      console.log('No calendar connection, storing locally only');
     }
 
-    // Create event in Google Calendar
-    const googleEvent = {
-      summary: title,
-      location: location || '',
-      description: description || '',
-      start: {
-        dateTime: startTime,
-        timeZone: 'UTC',
-      },
-      end: {
-        dateTime: endTime,
-        timeZone: 'UTC',
-      },
-    };
-
-    const calendarResponse = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${connection.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(googleEvent),
-      }
-    );
-
-    if (!calendarResponse.ok) {
-      const errorText = await calendarResponse.text();
-      console.error('Google Calendar API error:', calendarResponse.status, errorText);
-      
-      // If token expired, try to refresh
-      if (calendarResponse.status === 401 && connection.refresh_token) {
-        console.log('Access token expired, attempting refresh...');
-        // Token refresh logic would go here
-        return new Response(JSON.stringify({ error: 'Token expired, please reconnect calendar' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      return new Response(JSON.stringify({ error: 'Failed to create calendar event' }), {
-        status: calendarResponse.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const createdEvent = await calendarResponse.json();
-    console.log('Created Google Calendar event:', createdEvent.id);
-
-    // Store in local database
+    // Store in local database (always, regardless of Google sync)
     const { data: localEvent, error: dbError } = await supabase
       .from('calendar_events')
       .insert({
         user_id: user.id,
-        event_id: createdEvent.id,
+        event_id: googleEventId,
         title: title,
         start_time: startTime,
         end_time: endTime,
         location: location || null,
         description: description || null,
-        calendar_provider: 'google'
+        calendar_provider: syncedToGoogle ? 'google' : 'local'
       })
       .select()
       .single();
 
     if (dbError) {
       console.error('Database insert error:', dbError);
+      return new Response(JSON.stringify({ error: 'Failed to save event' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // If this is tied to an activity, create scheduled_activity record
@@ -130,7 +132,8 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       success: true, 
-      event: localEvent || createdEvent 
+      event: localEvent,
+      syncedToGoogle
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

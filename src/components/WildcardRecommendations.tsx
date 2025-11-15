@@ -97,7 +97,7 @@ export const WildcardRecommendations = ({ trigger }: WildcardRecommendationsProp
       const startTime = scheduledTime;
       const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
 
-      const { error } = await supabase.functions.invoke('create-calendar-event', {
+      const { data, error } = await supabase.functions.invoke('create-calendar-event', {
         body: {
           title: activity.name,
           startTime: startTime.toISOString(),
@@ -110,9 +110,13 @@ export const WildcardRecommendations = ({ trigger }: WildcardRecommendationsProp
 
       if (error) throw error;
 
+      const syncedToGoogle = data?.syncedToGoogle;
+
       toast({
         title: "🎉 Activity scheduled!",
-        description: `${activity.name} added to your calendar`,
+        description: syncedToGoogle 
+          ? `${activity.name} added to your Google Calendar`
+          : `${activity.name} saved to your plans (connect Google Calendar to sync)`,
       });
 
       setOpen(false);
@@ -121,7 +125,7 @@ export const WildcardRecommendations = ({ trigger }: WildcardRecommendationsProp
       toast({
         variant: "destructive",
         title: "Failed to schedule",
-        description: "Please try connecting your calendar first.",
+        description: "Could not save the activity. Please try again.",
       });
     }
   };
