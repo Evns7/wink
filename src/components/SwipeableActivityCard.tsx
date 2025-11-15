@@ -32,6 +32,7 @@ interface SwipeableActivityCardProps {
   friendName: string;
   suggestedTime: string;
   onSwipe: (direction: "left" | "right") => void;
+  midpoint?: { lat: number; lng: number } | null;
 }
 
 export const SwipeableActivityCard = ({
@@ -39,6 +40,7 @@ export const SwipeableActivityCard = ({
   friendName,
   suggestedTime,
   onSwipe,
+  midpoint,
 }: SwipeableActivityCardProps) => {
   const [exitX, setExitX] = useState(0);
   const [aiOpen, setAiOpen] = useState(false);

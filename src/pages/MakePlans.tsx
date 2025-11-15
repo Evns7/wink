@@ -2,12 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SwipeableActivityCard } from "@/components/SwipeableActivityCard";
+import { FriendSelector } from "@/components/calendar/FriendSelector";
+import { TimeBlockSelector } from "@/components/calendar/TimeBlockSelector";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, MapPin, Users, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/Header";
-import { useQuery } from "@tanstack/react-query";
+import { calculateMidpoint } from "@/services/locationService";
+import { generateMapsPinUrl } from "@/lib/mapsUtils";
 
 interface Activity {
   id: string;
@@ -45,12 +48,24 @@ interface ActivitySuggestion {
   };
 }
 
+interface TimeBlock {
+  start: string;
+  end: string;
+  duration: number;
+}
+
 export default function MakePlans() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<ActivitySuggestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedFriendId, setSelectedFriendId] = useState<string>("");
+  const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
+  const [selectedTimeBlock, setSelectedTimeBlock] = useState<TimeBlock | null>(null);
+  const [loadingTimeBlocks, setLoadingTimeBlocks] = useState(false);
+  const [midpoint, setMidpoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [friendName, setFriendName] = useState<string>("");
 
   useEffect(() => {
     checkAuth();
