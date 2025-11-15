@@ -35,10 +35,9 @@ const Auth = () => {
     const handleOAuthCallback = async () => {
       const code = searchParams.get('code');
       if (code) {
-        const redirectUri = `${window.location.origin}/auth`;
         try {
           const { data, error } = await supabase.functions.invoke('google-calendar-oauth', {
-            body: { action: 'exchange_code', code, redirectUri }
+            body: { action: 'exchange_code', code }
           });
 
           if (error) throw error;
