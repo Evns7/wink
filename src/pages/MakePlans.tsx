@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SwipeableActivityCard } from "@/components/SwipeableActivityCard";
+import { FriendSelector } from "@/components/FriendSelector";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles, Calendar as CalendarIcon, X } from "lucide-react";
+import { Loader2, Sparkles, Calendar as CalendarIcon, X, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/Header";
 
@@ -44,6 +45,7 @@ export default function MakePlans() {
   const [acceptedActivities, setAcceptedActivities] = useState<ActivitySuggestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
 
   useEffect(() => {
     checkAuth();
@@ -160,14 +162,42 @@ export default function MakePlans() {
 
     if (direction === "right") {
       setAcceptedActivities(prev => [...prev, suggestion]);
+      
+      // Send notifications to selected friends
+      if (selectedFriendIds.length > 0) {
+        await sendInvitations(suggestion);
+      }
+      
       toast.success("Activity saved!", {
-        description: acceptedActivities.length + 1 >= 3 
+        description: selectedFriendIds.length > 0 
+          ? `Invitations sent to ${selectedFriendIds.length} friend(s)!`
+          : acceptedActivities.length + 1 >= 3 
           ? "You can now add them to your calendar!" 
           : `${suggestion.activity.name} added`,
       });
     }
 
     setCurrentIndex(prev => prev + 1);
+  };
+
+  const sendInvitations = async (suggestion: ActivitySuggestion) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      for (const friendId of selectedFriendIds) {
+        await supabase.from('notifications').insert({
+          user_id: friendId,
+          sender_id: user.id,
+          activity_id: suggestion.activity.id,
+          activity_name: suggestion.activity.name,
+          activity_address: suggestion.activity.address,
+          activity_time: suggestion.suggestedTime,
+        });
+      }
+    } catch (error) {
+      console.error('Error sending invitations:', error);
+    }
   };
 
   const addToCalendar = async () => {
@@ -216,6 +246,14 @@ export default function MakePlans() {
           <p className="text-muted-foreground">Swipe right to save, left to pass</p>
         </div>
 
+        {/* Friend Selector */}
+        <div className="mb-6">
+          <FriendSelector
+            selectedFriendIds={selectedFriendIds}
+            onSelectionChange={setSelectedFriendIds}
+          />
+        </div>
+
         {/* Accepted activities banner */}
         {acceptedActivities.length > 0 && (
           <Card className="p-4 mb-6 bg-primary/5 border-primary/20">
@@ -223,6 +261,11 @@ export default function MakePlans() {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
                 <span className="font-medium">{acceptedActivities.length} saved</span>
+                {selectedFriendIds.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    • {selectedFriendIds.length} friend(s) invited
+                  </span>
+                )}
               </div>
               {acceptedActivities.length >= 3 && (
                 <Button
