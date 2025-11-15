@@ -84,9 +84,13 @@ serve(async (req) => {
       userProfile?.sleep_time || '22:00'
     );
 
-    console.log('Found free blocks:', freeBlocks.length);
+    // Filter out past time slots
+    const now = new Date();
+    const futureFreeBlocks = freeBlocks.filter(block => new Date(block.start) > now);
 
-    return new Response(JSON.stringify({ freeBlocks }), {
+    console.log('Found future free blocks:', futureFreeBlocks.length);
+
+    return new Response(JSON.stringify({ freeBlocks: futureFreeBlocks }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 

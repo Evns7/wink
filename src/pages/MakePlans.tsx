@@ -507,7 +507,7 @@ export default function MakePlans() {
         )}
 
         {currentSuggestion && (
-          <div className="flex justify-end gap-4 mt-12 pr-8">
+          <div className="flex justify-end gap-4 mt-20 pr-8">
             <Button
               variant="outline"
               size="lg"
