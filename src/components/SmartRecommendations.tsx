@@ -28,6 +28,9 @@ interface Activity {
   isPerfectMatch: boolean;
   address: string;
   price_level: number;
+  link?: string;
+  lat?: number;
+  lng?: number;
 }
 
 export const SmartRecommendations = () => {
@@ -380,9 +383,9 @@ export const SmartRecommendations = () => {
                         <Progress value={activity.matchScore} className="h-2" />
                       </div>
 
-                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground font-sans">
                         <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
+                          <Clock className="h-3 w-3" />
                           {activity.travelTimeMinutes} min away
                         </span>
                         <span className="flex items-center gap-1">
@@ -394,6 +397,18 @@ export const SmartRecommendations = () => {
                           {activity.distance.toFixed(1)} km
                         </span>
                       </div>
+                      <p className="text-xs text-muted-foreground mt-2 font-sans">{activity.address || 'Address not available'}</p>
+                      {activity.link && (
+                        <a 
+                          href={activity.link} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1 font-sans"
+                        >
+                          <MapPin className="w-3 h-3" />
+                          View on Google Maps →
+                        </a>
+                      )}
 
                       {/* Why recommended? - Expandable */}
                       <Button

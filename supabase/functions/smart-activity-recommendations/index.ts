@@ -258,11 +258,14 @@ serve(async (req) => {
         scoreBreakdown.duration = 7; // neutral
       }
 
-      const totalScore = Object.values(scoreBreakdown).reduce((a: any, b: any) => a + b, 0);
+      const totalScore = Object.values(scoreBreakdown).reduce((a: any, b: any) => a + b, 0) as number;
+      
+      // CRITICAL: Clamp total score to maximum 100%
+      const clampedScore = Math.min(totalScore, 100);
 
       return {
         ...activity,
-        totalScore,
+        totalScore: clampedScore,
         score_breakdown: scoreBreakdown,
       };
     });
@@ -270,27 +273,36 @@ serve(async (req) => {
     // Filter activities scoring >= 40 for more variety
     const filteredActivities = scoredActivities.filter((a: any) => a.totalScore >= 40);
 
-    // Sort by score and take top 10 (best matches for this time slot)
+    // Sort by score and take top 5 (as requested)
     const topActivities = filteredActivities
       .sort((a: any, b: any) => b.totalScore - a.totalScore)
-      .slice(0, 10);
+      .slice(0, 5);
 
     console.log(`Filtered ${filteredActivities.length} activities scoring >= 40, selected top ${topActivities.length}`);
 
-    // Format activities with proper structure
+    // Format activities with proper structure including links
     const formattedActivities = topActivities.map((activity: any) => {
       const travelTime = Math.round((activity.distance || 0) * 10); // 10 min per km
+      
+      // Generate Google Maps link
+      const googleMapsLink = activity.lat && activity.lng 
+        ? `https://www.google.com/maps/search/?api=1&query=${activity.lat},${activity.lng}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.name + ' ' + (activity.address || ''))}`;
+      
       return {
         id: activity.id,
         name: activity.name,
         category: activity.category,
         address: activity.address || 'Address not available',
         price_level: activity.price_level || 1,
-        matchScore: Math.round(activity.totalScore),
+        matchScore: Math.min(Math.round(activity.totalScore), 100), // Extra safety clamp
         matchFactors: activity.score_breakdown,
         travelTimeMinutes: travelTime,
         distance: activity.distance || 0,
         isPerfectMatch: activity.totalScore >= 85,
+        link: googleMapsLink,
+        lat: activity.lat,
+        lng: activity.lng,
       };
     });
 
