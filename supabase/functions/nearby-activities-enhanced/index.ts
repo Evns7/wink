@@ -47,28 +47,58 @@ serve(async (req) => {
 
     const { lat, lng, radius = 5 } = validationResult.data;
 
-    // Get user profile and preferences
-    const [profileResult, preferencesResult] = await Promise.all([
+    // Get user profile, preferences, and activity history
+    const [profileResult, preferencesResult, activityHistoryResult] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
-      supabase.from('preferences').select('*').eq('user_id', user.id)
+      supabase.from('preferences').select('*').eq('user_id', user.id),
+      supabase
+        .from('scheduled_activities')
+        .select('*, activities(category)')
+        .eq('user_id', user.id)
+        .not('rating', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(20)
     ]);
 
     const profile = profileResult.data;
     const userPreferences = preferencesResult.data || [];
+    const activityHistory = activityHistoryResult.data || [];
     const selectedHobbies = userPreferences
       .filter((p: any) => p.score === 10)
       .map((p: any) => p.category);
 
+    // Build history-based preferences (categories with high ratings)
+    const categoryRatings: Record<string, { total: number; count: number }> = {};
+    activityHistory.forEach((activity: any) => {
+      const category = activity.activities?.category;
+      const rating = activity.rating;
+      if (category && rating) {
+        if (!categoryRatings[category]) {
+          categoryRatings[category] = { total: 0, count: 0 };
+        }
+        categoryRatings[category].total += rating;
+        categoryRatings[category].count += 1;
+      }
+    });
+
+    const likedCategories = Object.entries(categoryRatings)
+      .filter(([_, stats]) => stats.total / stats.count >= 4) // 4+ star average
+      .map(([category]) => category.toLowerCase());
+
     console.log('Fetching nearby activities from Overpass API...');
     
-    // Fetch from Overpass API
+    // Fetch from Overpass API - expanded categories
     const overpassQuery = `
       [out:json][timeout:25];
       (
         node["tourism"](around:${radius * 1000},${lat},${lng});
-        node["leisure"](around:${radius * 1000},${lat},${lng});
-        node["amenity"~"restaurant|cafe|bar|cinema|theatre"](around:${radius * 1000},${lat},${lng});
-        node["shop"](around:${radius * 1000},${lat},${lng});
+        node["leisure"~"sports_centre|fitness_centre|stadium|swimming_pool|park|playground|pitch|track|garden"](around:${radius * 1000},${lat},${lng});
+        node["amenity"~"restaurant|cafe|bar|cinema|theatre|library|community_centre|arts_centre|marketplace"](around:${radius * 1000},${lat},${lng});
+        node["shop"~"mall|supermarket|clothes|books|sports|music|art|gift|bakery"](around:${radius * 1000},${lat},${lng});
+        node["sport"](around:${radius * 1000},${lat},${lng});
+        way["leisure"~"sports_centre|fitness_centre|stadium|swimming_pool|park"](around:${radius * 1000},${lat},${lng});
+        way["amenity"~"restaurant|cafe|bar|cinema|theatre|library|arts_centre"](around:${radius * 1000},${lat},${lng});
+        way["shop"~"mall|supermarket|department_store"](around:${radius * 1000},${lat},${lng});
       );
       out body;
       >;
@@ -90,9 +120,9 @@ serve(async (req) => {
     console.log(`Found ${activities.length} activities from Overpass`);
 
     // Process and score activities
-    const scoredActivities = activities.slice(0, 20).map((activity: any) => {
-      const name = activity.tags?.name || activity.tags?.amenity || 'Unknown Activity';
-      const category = activity.tags?.tourism || activity.tags?.leisure || activity.tags?.amenity || activity.tags?.shop || 'general';
+    const scoredActivities = activities.slice(0, 30).map((activity: any) => {
+      const name = activity.tags?.name || activity.tags?.amenity || activity.tags?.leisure || activity.tags?.shop || 'Unknown Activity';
+      const category = activity.tags?.sport || activity.tags?.tourism || activity.tags?.leisure || activity.tags?.amenity || activity.tags?.shop || 'general';
       
       // Calculate distance
       const actLat = activity.lat;
@@ -116,13 +146,25 @@ serve(async (req) => {
         rating: 0,
       };
 
-      // Preference matching (max 30)
+      // Preference matching (max 30) with history boost
       const categoryLower = category.toLowerCase();
       const matchingPrefs = selectedHobbies.filter((hobby: string) => 
         categoryLower.includes(hobby.toLowerCase()) || 
         hobby.toLowerCase().includes(categoryLower)
       );
-      scoreBreakdown.preference = matchingPrefs.length > 0 ? 30 : 10;
+      
+      // Check if category matches activity history
+      const matchesHistory = likedCategories.some((cat: string) => 
+        categoryLower.includes(cat) || cat.includes(categoryLower)
+      );
+      
+      if (matchingPrefs.length > 0) {
+        scoreBreakdown.preference = matchesHistory ? 30 : 25; // Boost if matches history
+      } else if (matchesHistory) {
+        scoreBreakdown.preference = 20; // History match even without explicit preference
+      } else {
+        scoreBreakdown.preference = 10;
+      }
 
       // Distance scoring (max 40)
       if (distance <= 1) {
@@ -140,7 +182,7 @@ serve(async (req) => {
       scoreBreakdown.rating = Math.round((rating / 5) * 30);
 
       const totalScore = scoreBreakdown.preference + scoreBreakdown.distance + scoreBreakdown.rating;
-      const matchScore = Math.min(totalScore, 100);
+      const matchScore = Math.min(totalScore, 95); // Cap at 95% (no perfect match)
 
       return {
         id: activity.id.toString(),

@@ -56,13 +56,39 @@ serve(async (req) => {
     const { freeBlock, friendIds, weather } = validationResult.data;
     console.log('Getting live recommendations');
 
-    const [profileResult, preferencesResult] = await Promise.all([
+    const [profileResult, preferencesResult, activityHistoryResult] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
-      supabase.from('preferences').select('*').eq('user_id', user.id)
+      supabase.from('preferences').select('*').eq('user_id', user.id),
+      supabase
+        .from('scheduled_activities')
+        .select('*, activities(category)')
+        .eq('user_id', user.id)
+        .not('rating', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(20)
     ]);
 
     const profile = profileResult.data;
     const userPreferences = preferencesResult.data || [];
+    const activityHistory = activityHistoryResult.data || [];
+
+    // Build history-based preferences (categories with high ratings)
+    const categoryRatings: Record<string, { total: number; count: number }> = {};
+    activityHistory.forEach((activity: any) => {
+      const category = activity.activities?.category;
+      const rating = activity.rating;
+      if (category && rating) {
+        if (!categoryRatings[category]) {
+          categoryRatings[category] = { total: 0, count: 0 };
+        }
+        categoryRatings[category].total += rating;
+        categoryRatings[category].count += 1;
+      }
+    });
+
+    const likedCategories = Object.entries(categoryRatings)
+      .filter(([_, stats]) => stats.total / stats.count >= 4) // 4+ star average
+      .map(([category]) => category.toLowerCase());
 
     if (!profile || !profile.home_address) {
       return new Response(JSON.stringify({ error: 'Profile not configured' }), {
@@ -124,16 +150,23 @@ serve(async (req) => {
         hobby.toLowerCase().includes(eventCategory)
       );
       
+      // Check if category matches activity history
+      const matchesHistory = likedCategories.some((cat: string) => 
+        eventCategory.includes(cat) || cat.includes(eventCategory)
+      );
+      
       // Preference scoring: max 30 points
       if (matchingPrefs.length > 0) {
-        scoreBreakdown.preference = 30;
+        scoreBreakdown.preference = matchesHistory ? 30 : 25; // Boost if matches history
+      } else if (matchesHistory) {
+        scoreBreakdown.preference = 20; // History match even without explicit preference
       } else {
         const descLower = event.description.toLowerCase();
         const partialMatches = selectedHobbies.filter((hobby: string) =>
           descLower.includes(hobby.toLowerCase())
         );
-        // Partial match: max 20 points (2 points per hobby match, capped at 20)
-        scoreBreakdown.preference = Math.min(partialMatches.length * 2, 20);
+        // Partial match: max 15 points (capped lower to leave room for other factors)
+        scoreBreakdown.preference = Math.min(partialMatches.length * 2, 15);
       }
 
       if (freeBlock?.start && event.date) {
@@ -214,9 +247,9 @@ serve(async (req) => {
       const popularityScore = event.popularityScore || 0.5;
       scoreBreakdown.popularity = Math.round(popularityScore * 10);
 
-      // Sum all scores and ensure it never exceeds 100
+      // Sum all scores and ensure it never exceeds 95 (no perfect match)
       const totalScore = Object.values(scoreBreakdown).reduce((a: any, b: any) => a + b, 0) as number;
-      const finalScore = Math.min(Math.round(totalScore), 100);
+      const finalScore = Math.min(Math.round(totalScore), 95);
 
       return {
         id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
