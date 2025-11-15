@@ -279,7 +279,17 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
     // Generate Google Maps links for each activity
     const activitiesWithMaps = activities.map((activity: any) => {
       const encodedName = encodeURIComponent(activity.name);
-      const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodedName}+${activity.latitude},${activity.longitude}`;
+      
+      // Generate proper Google Maps link with fallback for missing coordinates
+      let mapsLink;
+      if (activity.latitude && activity.longitude && 
+          !isNaN(activity.latitude) && !isNaN(activity.longitude)) {
+        // Full link with coordinates
+        mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodedName}+${activity.latitude},${activity.longitude}`;
+      } else {
+        // Fallback to name-only search if coordinates are missing or invalid
+        mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodedName}`;
+      }
       
       return {
         ...activity,
@@ -294,6 +304,9 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
         what_makes_it_special: activity.what_makes_it_special || activity.reasoning,
         vibe: activity.vibe || 'Exciting experience',
         uniqueness_score: activity.uniqueness_score || 0,
+        // Ensure coordinates are valid numbers or undefined
+        latitude: activity.latitude && !isNaN(activity.latitude) ? activity.latitude : undefined,
+        longitude: activity.longitude && !isNaN(activity.longitude) ? activity.longitude : undefined,
       };
     });
 
