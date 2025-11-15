@@ -56,7 +56,6 @@ serve(async (req) => {
     const expiresAt = new Date(connection.token_expires_at);
 
     if (now >= expiresAt && connection.refresh_token) {
-      // Refresh token
       const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
       const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
 
@@ -76,7 +75,6 @@ serve(async (req) => {
         accessToken = tokens.access_token;
         const newExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
 
-        // Update tokens in database
         await supabase
           .from('calendar_connections')
           .update({
@@ -87,79 +85,109 @@ serve(async (req) => {
       }
     }
 
-    // Fetch events from Google Calendar
     const timeMin = new Date().toISOString();
-    const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+    const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const calendarResponse = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-      `timeMin=${encodeURIComponent(timeMin)}&` +
-      `timeMax=${encodeURIComponent(timeMax)}&` +
-      `singleEvents=true&` +
-      `orderBy=startTime`,
+    // Fetch ALL calendars
+    console.log('Fetching calendar list...');
+    const calendarListResponse = await fetch(
+      'https://www.googleapis.com/calendar/v3/users/me/calendarList',
       {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
+        headers: { Authorization: `Bearer ${accessToken}` },
       }
     );
 
-    if (!calendarResponse.ok) {
-      const error = await calendarResponse.text();
-      throw new Error(`Failed to fetch calendar events: ${error}`);
+    if (!calendarListResponse.ok) {
+      throw new Error(`Failed to fetch calendar list: ${calendarListResponse.statusText}`);
     }
 
-    const calendarData = await calendarResponse.json();
-    const events = calendarData.items || [];
+    const calendarListData = await calendarListResponse.json();
+    const calendars = calendarListData.items || [];
+    
+    console.log(`Found ${calendars.length} calendars`);
 
-    console.log(`Fetched ${events.length} events from Google Calendar`);
-
-    // Transform and save events
-    const transformedEvents = events.map((event: any) => ({
-      user_id: user.id,
-      event_id: event.id,
-      title: event.summary || 'Untitled Event',
-      description: event.description || null,
-      start_time: event.start.dateTime || event.start.date,
-      end_time: event.end.dateTime || event.end.date,
-      location: event.location || null,
-      is_all_day: !event.start.dateTime,
-      calendar_provider: 'google',
-    }));
-
-    // Upsert events
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { error: upsertError } = await supabaseAdmin
+    // Delete old events for this user first
+    await supabase
       .from('calendar_events')
-      .upsert(transformedEvents, { 
-        onConflict: 'user_id,event_id,calendar_provider',
-        ignoreDuplicates: false 
-      });
+      .delete()
+      .eq('user_id', user.id);
 
-    if (upsertError) {
-      throw upsertError;
+    let totalEventsInserted = 0;
+
+    // Fetch events from ALL calendars
+    for (const calendar of calendars) {
+      if (!calendar.selected) continue;
+
+      console.log(`Fetching events from calendar: ${calendar.summary}`);
+
+      const eventsResponse = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar.id)}/events?` +
+        `timeMin=${encodeURIComponent(timeMin)}&` +
+        `timeMax=${encodeURIComponent(timeMax)}&` +
+        `singleEvents=true&` +
+        `orderBy=startTime`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (!eventsResponse.ok) {
+        console.error(`Failed to fetch events from ${calendar.summary}`);
+        continue;
+      }
+
+      const eventsData = await eventsResponse.json();
+      const items = eventsData.items || [];
+
+      console.log(`Found ${items.length} events in ${calendar.summary}`);
+
+      const eventsToInsert = items
+        .filter((item: any) => item.start?.dateTime || item.start?.date)
+        .map((item: any) => ({
+          user_id: user.id,
+          event_id: `${calendar.id}_${item.id}`,
+          calendar_provider: 'google',
+          title: item.summary || 'Untitled Event',
+          description: item.description || null,
+          start_time: item.start.dateTime || item.start.date,
+          end_time: item.end?.dateTime || item.end?.date || item.start.dateTime || item.start.date,
+          location: item.location || null,
+          is_all_day: !item.start.dateTime,
+        }));
+
+      if (eventsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('calendar_events')
+          .insert(eventsToInsert);
+
+        if (insertError) {
+          console.error(`Error inserting events from ${calendar.summary}:`, insertError);
+        } else {
+          totalEventsInserted += eventsToInsert.length;
+        }
+      }
     }
 
-    // Update last synced time
+    // Update last synced timestamp
     await supabase
       .from('calendar_connections')
       .update({ last_synced_at: new Date().toISOString() })
       .eq('id', connection.id);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        eventsCount: events.length 
+      JSON.stringify({
+        success: true,
+        calendarsProcessed: calendars.filter((c: any) => c.selected).length,
+        eventsInserted: totalEventsInserted,
+        message: `Synced ${totalEventsInserted} events from ${calendars.filter((c: any) => c.selected).length} calendars`,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
-    console.error('Error in sync-calendar-events:', error);
+  } catch (error: any) {
+    console.error('Sync error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

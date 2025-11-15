@@ -187,10 +187,12 @@ export const SwipeableActivityCard = ({
               <span className="text-sm">{activity.address}</span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4" />
-              <span className="text-sm">{getPriceDisplay(activity.price_level || 1)}</span>
-            </div>
+            {activity.price_level && activity.price_level > 0 && (
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4" />
+                <span className="text-sm">{getPriceDisplay(activity.price_level)}</span>
+              </div>
+            )}
 
             <div className="flex items-center gap-2">
               <span className="text-sm">📍 {activity.distance?.toFixed(1)} km away</span>

@@ -65,7 +65,7 @@ serve(async (req) => {
         .select('*, activities(category)')
         .eq('user_id', user.id)
         .not('rating', 'is', null)
-        .order('completed_at', { ascending: false })
+        .order('completed_at', { ascending: false})
         .limit(20)
     ]);
 
@@ -73,7 +73,7 @@ serve(async (req) => {
     const userPreferences = preferencesResult.data || [];
     const activityHistory = activityHistoryResult.data || [];
 
-    // Build history-based preferences (categories with high ratings)
+    // Build history-based preferences
     const categoryRatings: Record<string, { total: number; count: number }> = {};
     activityHistory.forEach((activity: any) => {
       const category = activity.activities?.category;
@@ -88,7 +88,7 @@ serve(async (req) => {
     });
 
     const likedCategories = Object.entries(categoryRatings)
-      .filter(([_, stats]) => stats.total / stats.count >= 4) // 4+ star average
+      .filter(([_, stats]) => stats.total / stats.count >= 4)
       .map(([category]) => category.toLowerCase());
 
     if (!profile || !profile.home_lat || !profile.home_lng) {
@@ -138,7 +138,7 @@ serve(async (req) => {
       }
     }
 
-    console.log('Fetching nearby activities from enhanced endpoint...');
+    console.log('Fetching nearby activities...');
     const nearbyResponse = await fetch(`${supabaseUrl}/functions/v1/nearby-activities-enhanced`, {
       method: 'POST',
       headers: {
@@ -148,29 +148,31 @@ serve(async (req) => {
       body: JSON.stringify({
         lat: searchLat,
         lng: searchLng,
-        radius: 5, // 5km radius from midpoint or user location
+        radius: 5,
       }),
     });
 
     if (!nearbyResponse.ok) {
       throw new Error(`Failed to fetch nearby activities: ${nearbyResponse.statusText}`);
-      throw new Error('Failed to fetch live events');
     }
 
-    const { events: liveEvents } = await scrapeResponse.json();
-    console.log(`Received ${liveEvents.length} live events`);
+    const nearbyData = await nearbyResponse.json();
+    const nearbyActivities = nearbyData.activities || [];
 
-    if (!liveEvents || liveEvents.length === 0) {
+    console.log(`Found ${nearbyActivities.length} nearby activities`);
+
+    if (nearbyActivities.length === 0) {
       return new Response(
         JSON.stringify({ 
           recommendations: [],
-          message: 'No live events found'
+          message: 'No activities found nearby'
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const scoredEvents = liveEvents.map((event: any) => {
+    // Score activities
+    const scoredActivities = nearbyActivities.map((activity: any) => {
       let preferenceScore = 0;
       const categoryLower = activity.category?.toLowerCase() || '';
 
@@ -225,9 +227,17 @@ serve(async (req) => {
       };
     });
 
-    // Sort by score and limit to top 10
-    scoredActivities.sort((a: any, b: any) => b.total_score - a.total_score);
-    const topActivities = scoredActivities.slice(0, 10);
+    // Sort by score then distance for variety, remove duplicates
+    scoredActivities.sort((a: any, b: any) => {
+      if (b.total_score !== a.total_score) return b.total_score - a.total_score;
+      return a.distance - b.distance;
+    });
+
+    const uniqueActivities = scoredActivities.filter((activity: any, index: number, self: any[]) =>
+      self.findIndex(t => t.id === activity.id) === index
+    );
+
+    const topActivities = uniqueActivities.slice(0, 10);
 
     return new Response(
       JSON.stringify({
@@ -236,136 +246,11 @@ serve(async (req) => {
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-        const partialMatches = selectedHobbies.filter((hobby: string) =>
-          descLower.includes(hobby.toLowerCase())
-        );
-        // Partial match: max 15 points (capped lower to leave room for other factors)
-        scoreBreakdown.preference = Math.min(partialMatches.length * 2, 15);
-      }
 
-      if (freeBlock?.start && event.date) {
-        try {
-          const eventDate = new Date(event.date);
-          const blockStart = new Date(freeBlock.start);
-          const blockEnd = new Date(freeBlock.end);
-          
-          if (eventDate >= blockStart && eventDate <= blockEnd) {
-            scoreBreakdown.time_fit = 20;
-          } else {
-            const daysDiff = Math.abs((eventDate.getTime() - blockStart.getTime()) / (1000 * 60 * 60 * 24));
-            if (daysDiff <= 1) scoreBreakdown.time_fit = 15;
-            else if (daysDiff <= 3) scoreBreakdown.time_fit = 10;
-            else if (daysDiff <= 7) scoreBreakdown.time_fit = 5;
-          }
-        } catch (e) {
-          scoreBreakdown.time_fit = 10;
-        }
-      } else {
-        scoreBreakdown.time_fit = 10;
-      }
-
-      if (weather) {
-        const isIndoorEvent = event.description.toLowerCase().includes('indoor') ||
-                             event.location.toLowerCase().includes('indoor') ||
-                             ['concert', 'theater', 'cinema', 'museum', 'gallery'].some((t: string) => 
-                               eventCategory.includes(t));
-        
-        if (weather.isRaining && isIndoorEvent) {
-          scoreBreakdown.weather = 15;
-        } else if (!weather.isRaining && !isIndoorEvent) {
-          scoreBreakdown.weather = 15;
-        } else if (weather.isRaining && !isIndoorEvent) {
-          scoreBreakdown.weather = 5;
-        } else {
-          scoreBreakdown.weather = 10;
-        }
-      } else {
-        scoreBreakdown.weather = 10;
-      }
-
-      const userBudgetMax = profile.budget_max || 50;
-      const eventPriceLevel = event.priceLevel || 1;
-      const estimatedPrice = eventPriceLevel === 0 ? 0 : eventPriceLevel * 20;
-
-      if (estimatedPrice === 0) {
-        scoreBreakdown.budget = 15;
-      } else if (estimatedPrice <= userBudgetMax) {
-        scoreBreakdown.budget = 15;
-      } else if (estimatedPrice <= userBudgetMax * 1.2) {
-        scoreBreakdown.budget = 10;
-      } else if (estimatedPrice <= userBudgetMax * 1.5) {
-        scoreBreakdown.budget = 5;
-      } else {
-        scoreBreakdown.budget = 2;
-      }
-
-      const userLocation = profile.home_address.toLowerCase();
-      const eventLocation = event.location.toLowerCase();
-      
-      const userParts = userLocation.split(',').map((s: string) => s.trim());
-      const eventParts = eventLocation.split(',').map((s: string) => s.trim());
-      
-      let proximityMatch = false;
-      for (const userPart of userParts) {
-        for (const eventPart of eventParts) {
-          if (userPart.includes(eventPart) || eventPart.includes(userPart)) {
-            proximityMatch = true;
-            break;
-          }
-        }
-        if (proximityMatch) break;
-      }
-
-      scoreBreakdown.proximity = proximityMatch ? 10 : 5;
-
-      const popularityScore = event.popularityScore || 0.5;
-      scoreBreakdown.popularity = Math.round(popularityScore * 10);
-
-      // Sum all scores and ensure it never exceeds 95 (no perfect match)
-      const totalScore = Object.values(scoreBreakdown).reduce((a: any, b: any) => a + b, 0) as number;
-      const finalScore = Math.min(Math.round(totalScore), 95);
-
-      return {
-        id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name: event.title,
-        description: event.description,
-        category: event.category,
-        location: event.location,
-        date: event.date,
-        time: event.time,
-        price: event.price,
-        priceRange: event.priceRange,
-        priceLevel: event.priceLevel,
-        url: event.url,
-        popularity: event.popularity,
-        matchScore: finalScore,
-        matchFactors: scoreBreakdown,
-        isPerfectMatch: finalScore >= 85,
-        source: 'live_eventbrite',
-        link: event.url,
-      };
-    });
-
-    const filteredEvents = scoredEvents.filter((e: any) => e.matchScore >= 40);
-    const topEvents = filteredEvents
-      .sort((a: any, b: any) => b.matchScore - a.matchScore)
-      .slice(0, 5);
-
-    console.log(`Returning ${topEvents.length} top recommendations`);
-
+  } catch (error: any) {
+    console.error('Error in smart-activity-recommendations:', error);
     return new Response(
-      JSON.stringify({ 
-        recommendations: topEvents,
-        totalEventsConsidered: liveEvents.length,
-        scrapedAt: new Date().toISOString(),
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error) {
-    console.error('Recommendation error:', error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
