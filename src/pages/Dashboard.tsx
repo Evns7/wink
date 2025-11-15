@@ -10,6 +10,7 @@ import WeatherWidget from "@/components/WeatherWidget";
 import { FriendsList } from "@/components/FriendsList";
 import { EventsList } from "@/components/events/EventsList";
 import { SmartRecommendations } from "@/components/SmartRecommendations";
+import { WildcardRecommendations } from "@/components/WildcardRecommendations";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
@@ -288,10 +289,7 @@ const Dashboard = () => {
                 <Calendar className="w-6 h-6" />
                 <span>Next Free Slot</span>
               </Button>
-              <Button variant="outline" className="h-auto py-4 flex-col gap-2 rounded-xl">
-                <Sparkles className="w-6 h-6" />
-                <span>Surprise Me</span>
-              </Button>
+              <WildcardRecommendations />
             </div>
           </CardContent>
         </Card>
