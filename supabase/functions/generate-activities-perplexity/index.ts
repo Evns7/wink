@@ -267,19 +267,11 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
     try {
       parsedResponse = JSON.parse(content);
     } catch (parseError) {
-      console.error('Failed to parse Perplexity response:', content);
-      // Try to extract partial JSON if possible
-      const jsonMatch = content.match(/\{[\s\S]*"activities"[\s\S]*\[[\s\S]*\]/);
-      if (jsonMatch) {
-        try {
-          parsedResponse = { activities: [] };
-          console.log('Response truncated, returning empty activities array');
-        } catch {
-          throw new Error('Invalid JSON response from AI');
-        }
-      } else {
-        throw new Error('Invalid JSON response from AI');
-      }
+      console.error('Failed to parse Perplexity response:', parseError);
+      console.error('Content length:', content.length);
+      console.error('First 500 chars:', content.substring(0, 500));
+      console.warn('Returning empty activities due to parse error');
+      parsedResponse = { activities: [] };
     }
 
     const activities = parsedResponse.activities || [];
