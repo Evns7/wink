@@ -178,33 +178,43 @@ serve(async (req) => {
       );
     }
 
-    // Perplexity already calculates match scores, so we just need to apply minor adjustments
+    // Perplexity calculates component scores, sum them to get match score (0-100)
     const scoredActivities = nearbyActivities.map((activity: any) => {
-      // Start with Perplexity's match percentage
-      let totalScore = activity.match_percentage || 50;
+      // Calculate total score from component scores
+      const componentSum = 
+        (activity.uniqueness_score || 0) +
+        (activity.preference_score || 0) +
+        (activity.time_fit_score || 0) +
+        (activity.budget_score || 0) +
+        (activity.proximity_score || 0);
       
-      // Apply small adjustments based on user context
+      // Ensure score is 0-100
+      let totalScore = Math.min(100, Math.max(0, componentSum || activity.match_percentage || 50));
+      
       const categoryLower = activity.category?.toLowerCase() || '';
       
-      // Boost if matches user's top preferences
+      // Apply small boosts but keep within 0-100
       if (selectedHobbies.some((h: string) => categoryLower.includes(h.toLowerCase()))) {
-        totalScore = Math.min(100, totalScore + 10);
+        totalScore = Math.min(100, totalScore + 5);
       }
       
-      // Boost if matches liked categories from history
       if (likedCategories.includes(categoryLower)) {
-        totalScore = Math.min(100, totalScore + 5);
+        totalScore = Math.min(100, totalScore + 3);
       }
 
       return {
         ...activity,
         match_score: Math.round(totalScore),
         total_score: Math.round(totalScore),
-        distance: activity.distance_km, // Normalize field name
+        distance: activity.distance_km,
         score_breakdown: {
-          base_match: activity.match_percentage,
-          preference_boost: selectedHobbies.some((h: string) => categoryLower.includes(h.toLowerCase())) ? 10 : 0,
-          history_boost: likedCategories.includes(categoryLower) ? 5 : 0,
+          uniqueness: activity.uniqueness_score || 0,
+          preference: activity.preference_score || 0,
+          time_fit: activity.time_fit_score || 0,
+          budget: activity.budget_score || 0,
+          proximity: activity.proximity_score || 0,
+          preference_boost: selectedHobbies.some((h: string) => categoryLower.includes(h.toLowerCase())) ? 5 : 0,
+          history_boost: likedCategories.includes(categoryLower) ? 3 : 0,
         },
       };
     });
