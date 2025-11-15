@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { motion, useMotionValue, useTransform, PanInfo } from "framer-motion";
-import { Heart, X, MapPin, DollarSign, Clock } from "lucide-react";
+import { Heart, X, MapPin, DollarSign, Clock, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Activity {
   id: string;
@@ -12,6 +14,17 @@ interface Activity {
   price_level: number;
   distance: number;
   match_score?: number;
+  totalScore?: number;
+  score_breakdown?: {
+    preference: number;
+    time_fit: number;
+    weather: number;
+    budget: number;
+    proximity: number;
+    duration: number;
+  };
+  ai_reasoning?: string | null;
+  insider_tip?: string | null;
 }
 
 interface SwipeableActivityCardProps {
@@ -28,9 +41,12 @@ export const SwipeableActivityCard = ({
   onSwipe,
 }: SwipeableActivityCardProps) => {
   const [exitX, setExitX] = useState(0);
+  const [aiOpen, setAiOpen] = useState(false);
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
   const opacity = useTransform(x, [-200, -100, 0, 100, 200], [0, 1, 1, 1, 0]);
+  
+  const displayScore = activity.totalScore || activity.match_score || 0;
 
   const handleDragEnd = (_: any, info: PanInfo) => {
     if (Math.abs(info.offset.x) > 100) {
@@ -72,13 +88,38 @@ export const SwipeableActivityCard = ({
       className="cursor-grab active:cursor-grabbing"
     >
       <Card className="overflow-hidden bg-card border-2 border-border shadow-lg">
-        <div className="relative h-64 bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+        <div className="relative h-64 bg-gradient-to-br from-primary/20 to-secondary/20 flex flex-col items-center justify-center gap-3">
           <div className="text-6xl">{getCategoryEmoji(activity.category)}</div>
-          {activity.match_score && (
-            <Badge className="absolute top-4 right-4 bg-primary text-primary-foreground">
-              {Math.round(activity.match_score)}% Match
-            </Badge>
-          )}
+          
+          {/* Circular Score Indicator */}
+          <div className="relative w-20 h-20">
+            <svg className="transform -rotate-90 w-20 h-20">
+              <circle
+                cx="40"
+                cy="40"
+                r="32"
+                stroke="currentColor"
+                strokeWidth="6"
+                fill="none"
+                className="text-muted"
+              />
+              <circle
+                cx="40"
+                cy="40"
+                r="32"
+                stroke="currentColor"
+                strokeWidth="6"
+                fill="none"
+                strokeDasharray={`${2 * Math.PI * 32}`}
+                strokeDashoffset={`${2 * Math.PI * 32 * (1 - displayScore / 100)}`}
+                className="text-primary transition-all duration-300"
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-lg font-bold text-foreground">{Math.round(displayScore)}</span>
+            </div>
+          </div>
         </div>
         
         <div className="p-6 space-y-4">
@@ -87,7 +128,39 @@ export const SwipeableActivityCard = ({
             <Badge variant="secondary" className="mb-3">
               {activity.category}
             </Badge>
+            
+            {/* Insider Tip Badge */}
+            {activity.insider_tip && (
+              <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-500/50 mb-3">
+                <Sparkles className="w-3 h-3 mr-1" />
+                Insider Tip
+              </Badge>
+            )}
           </div>
+
+          {/* Score Breakdown Badges */}
+          {activity.score_breakdown && (
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="text-xs">
+                ❤️ {activity.score_breakdown.preference}/30
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                ⏰ {activity.score_breakdown.time_fit}/20
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                ☀️ {activity.score_breakdown.weather}/15
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                💰 {activity.score_breakdown.budget}/15
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                📍 {activity.score_breakdown.proximity}/10
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                ⏱️ {activity.score_breakdown.duration}/10
+              </Badge>
+            </div>
+          )}
 
           <div className="space-y-2 text-muted-foreground">
             <div className="flex items-center gap-2">
@@ -109,6 +182,29 @@ export const SwipeableActivityCard = ({
               <span className="text-sm">📍 {activity.distance?.toFixed(1)} km away</span>
             </div>
           </div>
+
+          {/* AI Reasoning Section */}
+          {(activity.ai_reasoning || activity.insider_tip) && (
+            <Collapsible open={aiOpen} onOpenChange={setAiOpen}>
+              <CollapsibleTrigger className="flex items-center gap-2 w-full text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+                <Sparkles className="w-4 h-4" />
+                AI Insights
+                {aiOpen ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2 space-y-2">
+                {activity.ai_reasoning && (
+                  <p className="text-sm text-muted-foreground bg-primary/5 p-3 rounded-lg border border-primary/10">
+                    {activity.ai_reasoning}
+                  </p>
+                )}
+                {activity.insider_tip && (
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 bg-yellow-500/10 p-3 rounded-lg border border-yellow-500/20">
+                    💡 {activity.insider_tip}
+                  </p>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
 
           <div className="pt-4 border-t border-border">
             <p className="text-sm text-muted-foreground text-center">
