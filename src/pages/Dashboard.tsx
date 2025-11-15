@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Calendar, Sparkles, MapPin, LogOut } from "lucide-react";
 import ActivityCard from "@/components/ActivityCard";
 import WeatherWidget from "@/components/WeatherWidget";
+import { FriendsList } from "@/components/FriendsList";
+import { SmartRecommendations } from "@/components/SmartRecommendations";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { motion } from "framer-motion";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -149,6 +152,26 @@ const Dashboard = () => {
         <div className="mb-8">
           <WeatherWidget />
         </div>
+
+        {/* Smart Recommendations - Main Feature */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8"
+        >
+          <SmartRecommendations />
+        </motion.div>
+
+        {/* Friends List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="mb-8"
+        >
+          <FriendsList />
+        </motion.div>
 
         {/* Today's Schedule Preview */}
         <Card className="glass mb-8">

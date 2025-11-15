@@ -26,6 +26,7 @@ const Onboarding = () => {
     wakeTime: "07:00",
     sleepTime: "23:00",
   });
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -33,6 +34,48 @@ const Onboarding = () => {
       else setUserId(session.user.id);
     });
   }, [navigate]);
+
+  const getCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      toast({
+        variant: "destructive",
+        title: "Location not supported",
+        description: "Your browser doesn't support geolocation.",
+      });
+      return;
+    }
+
+    setGettingLocation(true);
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+
+      const { latitude, longitude } = position.coords;
+      
+      // Reverse geocode to get address
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+      );
+      const data = await response.json();
+      const address = data.display_name || `${latitude}, ${longitude}`;
+
+      setPreferences(prev => ({ ...prev, homeAddress: address }));
+      toast({
+        title: "Location detected",
+        description: "Your current location has been set.",
+      });
+    } catch (error) {
+      console.error('Location error:', error);
+      toast({
+        variant: "destructive",
+        title: "Location access denied",
+        description: "Please enter your address manually.",
+      });
+    } finally {
+      setGettingLocation(false);
+    }
+  };
 
   const geocodeAddress = async (address: string) => {
     try {
@@ -153,15 +196,26 @@ const Onboarding = () => {
             <div className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="address" className="text-lg">Home Address</Label>
-                <Input
-                  id="address"
-                  placeholder="123 Main St, City, Country"
-                  value={preferences.homeAddress}
-                  onChange={(e) => setPreferences({ ...preferences, homeAddress: e.target.value })}
-                  className="h-12 text-base rounded-xl"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="address"
+                    placeholder="123 Main St, City, Country"
+                    value={preferences.homeAddress}
+                    onChange={(e) => setPreferences({ ...preferences, homeAddress: e.target.value })}
+                    className="h-12 text-base rounded-xl flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={getCurrentLocation}
+                    disabled={gettingLocation}
+                    className="h-12 px-6 rounded-xl"
+                  >
+                    {gettingLocation ? "Getting..." : "📍 Use Current"}
+                  </Button>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  We'll use this to calculate travel times to activities
+                  We'll use this to calculate travel times and suggest nearby activities
                 </p>
               </div>
             </div>
