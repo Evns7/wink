@@ -44,3 +44,9 @@ verify_jwt = true
 
 [functions.generate-activities-perplexity]
 verify_jwt = true
+
+[functions.generate-activity-ratings]
+verify_jwt = true
+
+[functions.explain-recommendation]
+verify_jwt = true

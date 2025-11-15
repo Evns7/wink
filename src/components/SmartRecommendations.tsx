@@ -52,6 +52,8 @@ export const SmartRecommendations = () => {
   const [selectedBlock, setSelectedBlock] = useState<any>(null);
   const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [explanations, setExplanations] = useState<Record<string, string>>({});
+  const [loadingExplanations, setLoadingExplanations] = useState<Record<string, boolean>>({});
   
   // Filter states
   const [priceFilter, setPriceFilter] = useState<string>("all");
@@ -231,6 +233,52 @@ export const SmartRecommendations = () => {
   };
 
   const categories = Array.from(new Set(recommendations.map(r => r.category)));
+
+  const getExplanation = async (activity: Activity) => {
+    if (explanations[activity.id]) return; // Already loaded
+    if (loadingExplanations[activity.id]) return; // Already loading
+
+    setLoadingExplanations(prev => ({ ...prev, [activity.id]: true }));
+
+    try {
+      const { data, error } = await supabase.functions.invoke('explain-recommendation', {
+        body: {
+          activity: {
+            name: activity.name,
+            category: activity.category,
+            description: activity.description,
+            location: activity.location || activity.address,
+            date: activity.date
+          },
+          userContext: {
+            timeSlot: selectedBlock ? new Date(selectedBlock.start).toLocaleDateString() : null
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.explanation) {
+        setExplanations(prev => ({ ...prev, [activity.id]: data.explanation }));
+      }
+    } catch (error) {
+      console.error('Error getting explanation:', error);
+    } finally {
+      setLoadingExplanations(prev => ({ ...prev, [activity.id]: false }));
+    }
+  };
+
+  const handleExpandActivity = (activityId: string) => {
+    const activity = filteredRecommendations.find(a => a.id === activityId);
+    if (expandedActivity === activityId) {
+      setExpandedActivity(null);
+    } else {
+      setExpandedActivity(activityId);
+      if (activity && !explanations[activityId]) {
+        getExplanation(activity);
+      }
+    }
+  };
 
   return (
     <Card className="glass">
@@ -458,9 +506,7 @@ export const SmartRecommendations = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setExpandedActivity(
-                          expandedActivity === activity.id ? null : activity.id
-                        )}
+                        onClick={() => handleExpandActivity(activity.id)}
                         className="mt-2 text-xs rounded-full"
                       >
                         Why recommended?
@@ -476,11 +522,31 @@ export const SmartRecommendations = () => {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="mt-3 space-y-2 p-3 bg-muted/20 rounded-lg"
+                            className="mt-3 space-y-3 p-3 bg-muted/20 rounded-lg"
                           >
-                            {activity.matchFactors && Object.keys(activity.matchFactors).length > 0 ? (
+                            {/* AI-generated explanation */}
+                            <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+                              {loadingExplanations[activity.id] ? (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <div className="animate-spin h-3 w-3 border-2 border-primary border-t-transparent rounded-full"></div>
+                                  Generating personalized explanation...
+                                </div>
+                              ) : explanations[activity.id] ? (
+                                <p className="text-xs text-foreground leading-relaxed">
+                                  <Sparkles className="h-3 w-3 inline mr-1 text-primary" />
+                                  {explanations[activity.id]}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-muted-foreground italic">
+                                  Unable to generate explanation
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Score breakdown */}
+                            {activity.matchFactors && Object.keys(activity.matchFactors).length > 0 && (
                               <>
-                                <p className="text-xs font-medium mb-2">Score Breakdown:</p>
+                                <p className="text-xs font-medium">Score Breakdown:</p>
                                 {Object.entries(activity.matchFactors).map(([key, value]) => (
                                   <div key={key} className="space-y-1">
                                     <div className="flex items-center justify-between text-xs">
@@ -499,10 +565,6 @@ export const SmartRecommendations = () => {
                                   </div>
                                 ))}
                               </>
-                            ) : (
-                              <p className="text-xs text-muted-foreground">
-                                This event was selected based on your location, time availability, and current trending events in your area.
-                              </p>
                             )}
                           </motion.div>
                         )}
