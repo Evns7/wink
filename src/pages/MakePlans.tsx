@@ -75,6 +75,13 @@ export default function MakePlans() {
   const fetchAvailableTimeSlots = async () => {
     setLoadingTimeSlots(true);
     try {
+      // Check authentication first
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('Not authenticated, skipping time slot fetch');
+        return;
+      }
+
       const startDate = new Date();
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + 7);
