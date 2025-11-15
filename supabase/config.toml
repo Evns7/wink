@@ -1,5 +1,8 @@
 project_id = "lwhjjtxtqqhdzhorhhit"
 
+[functions.find-user-by-email]
+verify_jwt = true
+
 [functions.fetch-nearby-activities]
 verify_jwt = true
 

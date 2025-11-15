@@ -23,21 +23,35 @@ export const FriendsList = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    console.log('Fetching friends for user:', user.id);
+
     // Get accepted friendships
-    const { data: friendships } = await supabase
+    const { data: friendships, error: friendsError } = await supabase
       .from('friendships')
       .select('*')
       .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
       .eq('status', 'accepted');
 
+    if (friendsError) {
+      console.error('Error fetching friends:', friendsError);
+    } else {
+      console.log('Found friends:', friendships);
+    }
+
     setFriends(friendships || []);
 
-    // Get pending requests (where current user is the friend_id)
-    const { data: pending } = await supabase
+    // Get pending requests (where current user is the friend_id - incoming requests)
+    const { data: pending, error: pendingError } = await supabase
       .from('friendships')
       .select('*')
       .eq('friend_id', user.id)
       .eq('status', 'pending');
+
+    if (pendingError) {
+      console.error('Error fetching pending requests:', pendingError);
+    } else {
+      console.log('Found pending requests:', pending);
+    }
 
     setPendingRequests(pending || []);
   };
@@ -47,17 +61,38 @@ export const FriendsList = () => {
     
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      console.log('Sending friend request to:', searchEmail);
 
-      // Find user by email (requires profiles table with email or a lookup)
-      // For now, we'll use a simplified version - in production you'd need email lookup
-      
+      // Call edge function to find user by email and create friendship
+      const { data, error } = await supabase.functions.invoke('find-user-by-email', {
+        body: { email: searchEmail.trim() }
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      if (data.error) {
+        console.error('API error:', data.error);
+        toast({
+          variant: "destructive",
+          title: "Failed to send request",
+          description: data.error,
+        });
+        return;
+      }
+
+      console.log('Friend request created:', data);
+
       toast({
         title: "Friend request sent!",
         description: `Request sent to ${searchEmail}`,
       });
       setSearchEmail("");
+      
+      // Refresh the friends list to show updated state
+      fetchFriends();
     } catch (error) {
       console.error('Error sending request:', error);
       toast({
@@ -72,21 +107,34 @@ export const FriendsList = () => {
 
   const handleRequest = async (requestId: string, accept: boolean) => {
     try {
+      console.log(`${accept ? 'Accepting' : 'Rejecting'} friend request:`, requestId);
+
       const { error } = await supabase
         .from('friendships')
         .update({ status: accept ? 'accepted' : 'rejected' })
         .eq('id', requestId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error updating friendship:', error);
+        throw error;
+      }
+
+      console.log('Friendship updated successfully');
 
       toast({
         title: accept ? "Friend request accepted!" : "Request declined",
         description: accept ? "You can now see each other's calendars" : undefined,
       });
 
+      // Refresh to show updated lists
       fetchFriends();
     } catch (error) {
       console.error('Error handling request:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update friend request",
+      });
     }
   };
 
