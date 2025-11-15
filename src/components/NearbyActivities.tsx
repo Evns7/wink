@@ -58,18 +58,38 @@ export const NearbyActivities = () => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('nearby-activities-enhanced', {
-        body: {
-          lat: profile.home_lat,
-          lng: profile.home_lng,
-          radius: 5,
-        },
+      const { data, error } = await supabase.functions.invoke('smart-activity-recommendations', {
+        body: {},
       });
 
       if (error) throw error;
 
-      setActivities(data.activities || []);
-      setFilteredActivities(data.activities || []);
+      // Transform recommendations to match Activity interface
+      const transformedActivities = (data.recommendations || []).map((rec: any) => ({
+        id: rec.id,
+        name: rec.name,
+        description: rec.description || rec.reason || '',
+        category: rec.category,
+        location: rec.address || rec.location || '',
+        lat: rec.lat,
+        lng: rec.lng,
+        distance: rec.distance || rec.distance_km || 0,
+        travelTime: rec.travel_time_minutes || 15,
+        price: rec.price || `£${rec.price_level * 10 || 0}`,
+        priceLevel: rec.price_level || 1,
+        rating: rec.rating || 4.0,
+        matchScore: rec.match_score || rec.total_score || 50,
+        matchFactors: rec.score_breakdown || {
+          preference: 5,
+          distance: 5,
+          rating: 5,
+        },
+        imageUrl: rec.image_url || null,
+        source: rec.source || 'perplexity',
+      }));
+
+      setActivities(transformedActivities);
+      setFilteredActivities(transformedActivities);
     } catch (error) {
       console.error('Error fetching activities:', error);
       toast({
