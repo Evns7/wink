@@ -1,10 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://esm.sh/zod@3.22.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const recommendationsSchema = z.object({
+  freeBlock: z.object({
+    start: z.string().datetime(),
+    end: z.string().datetime(),
+    duration: z.number().int().positive(),
+    participantCount: z.number().int().positive(),
+  }).optional(),
+  friendIds: z.array(z.string().uuid()).max(10).optional(),
+  weather: z.object({
+    temp: z.number(),
+    isRaining: z.boolean(),
+  }).optional(),
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -27,7 +42,17 @@ serve(async (req) => {
       });
     }
 
-    const { freeBlock, friendIds, weather } = await req.json();
+    const rawData = await req.json();
+    const validationResult = recommendationsSchema.safeParse(rawData);
+    
+    if (!validationResult.success) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input', details: validationResult.error.errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { freeBlock, friendIds, weather } = validationResult.data;
     console.log('Getting recommendations for:', { userId: user.id, freeBlock, friendIds, weather });
 
     // Get user profile and preferences
