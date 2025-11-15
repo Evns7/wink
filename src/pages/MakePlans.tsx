@@ -5,6 +5,7 @@ import { SwipeableActivityCard } from "@/components/SwipeableActivityCard";
 import { FriendSelector } from "@/components/FriendSelector";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Loader2, Sparkles, Calendar as CalendarIcon, X, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/Header";
@@ -46,10 +47,22 @@ export default function MakePlans() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<any[]>([]);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<any | null>(null);
+  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (selectedFriendIds.length > 0) {
+      fetchAvailableTimeSlots();
+    } else {
+      setAvailableTimeSlots([]);
+      setSelectedTimeSlot(null);
+    }
+  }, [selectedFriendIds]);
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -58,8 +71,47 @@ export default function MakePlans() {
     }
   };
 
+  const fetchAvailableTimeSlots = async () => {
+    setLoadingTimeSlots(true);
+    try {
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 7);
+
+      const { data, error } = await supabase.functions.invoke(
+        'analyze-group-availability',
+        {
+          body: {
+            friendIds: selectedFriendIds,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      const freeBlocks = data.freeBlocks || [];
+      setAvailableTimeSlots(freeBlocks.slice(0, 10)); // Show top 10 slots
+      
+      if (freeBlocks.length > 0) {
+        setSelectedTimeSlot(freeBlocks[0]); // Auto-select first slot
+      }
+    } catch (error) {
+      console.error('Error fetching time slots:', error);
+      toast.error("Failed to fetch available time slots");
+    } finally {
+      setLoadingTimeSlots(false);
+    }
+  };
+
   const generateSuggestions = async () => {
     if (isGenerating) return;
+
+    if (!selectedTimeSlot && selectedFriendIds.length > 0) {
+      toast.error("Please select a time slot first");
+      return;
+    }
 
     setIsGenerating(true);
     setLoading(true);
@@ -71,40 +123,47 @@ export default function MakePlans() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 7);
+      let freeBlock;
+      
+      if (selectedTimeSlot) {
+        // Use selected time slot
+        freeBlock = selectedTimeSlot;
+      } else {
+        // No friends selected, find user's own availability
+        const startDate = new Date();
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 7);
 
-      // Analyze user's availability
-      const { data: availabilityData, error: availabilityError } = await supabase.functions.invoke(
-        'analyze-group-availability',
-        {
-          body: {
-            friendIds: [],
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-          },
+        const { data: availabilityData, error: availabilityError } = await supabase.functions.invoke(
+          'analyze-group-availability',
+          {
+            body: {
+              friendIds: [],
+              startDate: startDate.toISOString(),
+              endDate: endDate.toISOString(),
+            },
+          }
+        );
+
+        if (availabilityError) throw availabilityError;
+
+        const freeBlocks = availabilityData.freeBlocks || [];
+        if (freeBlocks.length === 0) {
+          toast.info("No free time found", {
+            description: "Your schedule is fully booked!",
+          });
+          return;
         }
-      );
-
-      if (availabilityError) throw availabilityError;
-
-      const freeBlocks = availabilityData.freeBlocks || [];
-      if (freeBlocks.length === 0) {
-        toast.info("No free time found", {
-          description: "Your schedule is fully booked!",
-        });
-        return;
+        
+        freeBlock = freeBlocks[0];
       }
 
-      // Get recommendations for the first available time block
-      const block = freeBlocks[0];
-      
+      // Get recommendations for the time block
       const { data, error } = await supabase.functions.invoke(
         'smart-activity-recommendations',
         {
           body: {
-            freeBlock: block,
+            freeBlock: freeBlock,
             weather: { temp: 15, isRaining: false },
           },
         }
@@ -131,11 +190,11 @@ export default function MakePlans() {
           ai_reasoning: rec.ai_reasoning,
           insider_tip: rec.insider_tip,
         },
-        suggestedTime: block.start,
+        suggestedTime: freeBlock.start,
         context: {
           score_breakdown: rec.score_breakdown,
           total_score: rec.total_score || rec.match_score,
-          time_block: block,
+          time_block: freeBlock,
         },
       }));
 
@@ -235,6 +294,20 @@ export default function MakePlans() {
     }
   };
 
+  const formatTimeSlot = (slot: any) => {
+    const start = new Date(slot.start);
+    const end = new Date(slot.end);
+    const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60));
+    
+    return {
+      date: start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      time: `${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
+      duration: `${duration}h`,
+      isToday: start.toDateString() === new Date().toDateString(),
+      isTomorrow: start.toDateString() === new Date(Date.now() + 86400000).toDateString(),
+    };
+  };
+
   const currentSuggestion = suggestions[currentIndex];
 
   return (
@@ -253,6 +326,66 @@ export default function MakePlans() {
             onSelectionChange={setSelectedFriendIds}
           />
         </div>
+
+        {/* Time Slot Selection */}
+        {selectedFriendIds.length > 0 && (
+          <Card className="p-4 mb-6 bg-card border-border">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarIcon className="h-5 w-5 text-primary" />
+              <h3 className="font-semibold text-foreground">Select a Time Slot</h3>
+            </div>
+            
+            {loadingTimeSlots ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span className="ml-2 text-muted-foreground">Finding free time...</span>
+              </div>
+            ) : availableTimeSlots.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">
+                  No mutual free time found in the next 7 days
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {availableTimeSlots.map((slot, index) => {
+                  const formatted = formatTimeSlot(slot);
+                  const isSelected = selectedTimeSlot === slot;
+                  
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedTimeSlot(slot)}
+                      className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
+                        isSelected 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/50 hover:bg-accent/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-foreground">{formatted.date}</span>
+                            {formatted.isToday && (
+                              <Badge variant="secondary" className="text-xs">Today</Badge>
+                            )}
+                            {formatted.isTomorrow && (
+                              <Badge variant="secondary" className="text-xs">Tomorrow</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{formatted.time}</p>
+                        </div>
+                        <Badge variant="outline" className="ml-2">
+                          {formatted.duration}
+                        </Badge>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Accepted activities banner */}
         {acceptedActivities.length > 0 && (
