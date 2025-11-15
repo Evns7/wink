@@ -83,11 +83,8 @@ const Onboarding = () => {
       });
     } catch (error) {
       console.error('Location error:', error);
-      toast({
-        variant: "destructive",
-        title: "Location access denied",
-        description: "Please enter your address manually.",
-      });
+      // Don't show error toast - location is optional
+      // User can simply enter address manually
     } finally {
       setGettingLocation(false);
     }
