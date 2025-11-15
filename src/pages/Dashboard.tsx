@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -124,14 +125,6 @@ const Dashboard = () => {
     navigate('/');
   };
 
-  const gradientClass = {
-    sunrise: 'bg-gradient-sunrise',
-    afternoon: 'bg-gradient-afternoon',
-    sunset: 'bg-gradient-sunset',
-    night: 'bg-gradient-night',
-  }[timeOfDay];
-
-
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good Morning";
@@ -140,7 +133,8 @@ const Dashboard = () => {
   };
 
   return (
-    <div className={`min-h-screen ${gradientClass} transition-smooth`}>
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/10 to-background">
+      <Header />
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Header */}
         <div className="mb-8">

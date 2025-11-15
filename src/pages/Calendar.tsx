@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Users } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Header } from "@/components/Header";
 
 const Calendar = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -47,8 +47,9 @@ const Calendar = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-afternoon">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/10 to-background">
+      <Header />
+      <div className="container mx-auto p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -56,11 +57,6 @@ const Calendar = () => {
             <p className="text-lg text-muted-foreground">Manage your schedule and find free time</p>
           </div>
           <div className="flex gap-3">
-            <Link to="/dashboard">
-              <Button variant="outline" className="rounded-xl">
-                Back to Dashboard
-              </Button>
-            </Link>
             <Button className="rounded-xl">
               <Users className="w-4 h-4 mr-2" />
               View Friends
