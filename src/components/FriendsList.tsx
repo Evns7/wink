@@ -242,9 +242,13 @@ export const FriendsList = () => {
                   className="flex items-center gap-3 p-3 bg-card/50 rounded-xl hover-scale"
                 >
                   <Avatar>
-                    <AvatarFallback>👤</AvatarFallback>
+                    <AvatarFallback>
+                      {friendship.friendEmail?.[0]?.toUpperCase() || '👤'}
+                    </AvatarFallback>
                   </Avatar>
-                  <span className="text-sm flex-1">Friend</span>
+                  <span className="text-sm flex-1">
+                    {friendship.friendEmail || 'Loading...'}
+                  </span>
                   <Button size="sm" variant="outline" className="rounded-full">
                     View Calendar
                   </Button>
