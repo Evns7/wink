@@ -107,7 +107,10 @@ export default function MakePlans() {
 
       const allSuggestions: ActivitySuggestion[] = [];
 
-      for (const block of freeBlocks.slice(0, 5)) {
+      // Limit to 5 total recommendations
+      for (const block of freeBlocks) {
+        if (allSuggestions.length >= 5) break;
+
         const { data: recommendationData, error: recommendationError } = await supabase.functions.invoke(
           'smart-activity-recommendations',
           {
@@ -126,24 +129,34 @@ export default function MakePlans() {
 
         const activities = recommendationData.recommendations || [];
         
-        const blockSuggestions = activities.slice(0, 2).flatMap((activity: Activity) => 
-          friendIds.slice(0, 2).map((friendId: string) => ({
-            activity,
-            friendId,
-            friendEmail: `Friend ${friendId.substring(0, 8)}`,
-            suggestedTime: block.start,
-            context: {
-              score_breakdown: activity.score_breakdown,
-              total_score: activity.totalScore,
-              weather_conditions: { temp: 15, isRaining: false },
-              time_block: { start: block.start, end: block.end },
-              ai_reasoning: activity.ai_reasoning,
-              insider_tip: activity.insider_tip,
-            },
-          }))
-        );
+        // Take only the first activity (best match) and first friend from each block
+        if (activities.length > 0 && allSuggestions.length < 5) {
+          const activity = activities[0];
+          const participants = block.participants || friendIds.slice(0, 3);
+          const friendId = participants.find((id: string) => id !== user.id) || participants[0];
+          
+          if (friendId && friendId !== user.id) {
+            // Fetch friend email
+            const { data: friendData } = await supabase.functions.invoke('get-user-email', {
+              body: { userId: friendId }
+            });
 
-        allSuggestions.push(...blockSuggestions);
+            allSuggestions.push({
+              activity,
+              friendId,
+              friendEmail: friendData?.email || 'Unknown Friend',
+              suggestedTime: block.start,
+              context: {
+                score_breakdown: activity.score_breakdown,
+                total_score: activity.totalScore,
+                weather_conditions: { temp: 15, isRaining: false },
+                time_block: { start: block.start, end: block.end },
+                ai_reasoning: activity.ai_reasoning,
+                insider_tip: activity.insider_tip,
+              },
+            });
+          }
+        }
       }
 
       if (allSuggestions.length === 0) {
