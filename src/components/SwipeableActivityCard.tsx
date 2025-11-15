@@ -125,8 +125,20 @@ export const SwipeableActivityCard = ({
         </div>
         
         <div className="p-6 space-y-4">
+          {/* Friend info at top */}
+          <div className="flex items-center gap-2 pb-3 border-b">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="text-sm font-semibold text-primary">
+                {friendName[0]?.toUpperCase()}
+              </span>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Plan with {friendName}</p>
+            </div>
+          </div>
+
           <div>
-            <h3 className="text-2xl font-bold text-foreground mb-2">{activity.name}</h3>
+            <h2 className="text-2xl font-bold text-foreground mb-2">{activity.name}</h2>
             <Badge variant="secondary" className="mb-3">
               {activity.category}
             </Badge>

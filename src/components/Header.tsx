@@ -1,6 +1,7 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Home, User, LogOut, Calendar, Sparkles, Clock } from "lucide-react";
+import { Home, User, LogOut, Calendar, Sparkles, Clock, Bell } from "lucide-react";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -28,6 +29,7 @@ export const Header = () => {
   const { toast } = useToast();
   const [timezone, setTimezone] = useState<TimezoneInfo | null>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [notificationCount, setNotificationCount] = useState(0);
 
   // Detect timezone on mount
   useEffect(() => {
@@ -36,7 +38,49 @@ export const Header = () => {
       setTimezone(tz);
     };
     detectTz();
+    fetchNotificationCount();
+    setupRealtimeSubscription();
   }, []);
+
+  const fetchNotificationCount = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { count, error } = await supabase
+        .from('activity_invitations')
+        .select('*', { count: 'exact', head: true })
+        .eq('invitee_id', user.id)
+        .eq('status', 'pending');
+
+      if (!error && count !== null) {
+        setNotificationCount(count || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching notification count:', error);
+    }
+  };
+
+  const setupRealtimeSubscription = () => {
+    const channel = supabase
+      .channel('header-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'activity_invitations',
+        },
+        () => {
+          fetchNotificationCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
 
   // Update time every minute
   useEffect(() => {
@@ -81,6 +125,9 @@ export const Header = () => {
     } else if (path === "/profile") {
       crumbs.push({ label: "Dashboard", path: "/dashboard", active: false });
       crumbs.push({ label: "Profile", path: "/profile", active: true });
+    } else if (path === "/notifications") {
+      crumbs.push({ label: "Dashboard", path: "/dashboard", active: false });
+      crumbs.push({ label: "Notifications", path: "/notifications", active: true });
     }
 
     return crumbs;
@@ -183,6 +230,17 @@ export const Header = () => {
                 <Link to="/profile" className="cursor-pointer">
                   <User className="mr-2 h-4 w-4" />
                   Profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/notifications" className="cursor-pointer">
+                  <Bell className="mr-2 h-4 w-4" />
+                  <span>Notifications</span>
+                  {notificationCount > 0 && (
+                    <Badge variant="default" className="ml-auto h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
+                      {notificationCount}
+                    </Badge>
+                  )}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
