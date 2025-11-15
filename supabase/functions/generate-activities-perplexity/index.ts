@@ -72,59 +72,34 @@ serve(async (req) => {
     const currentDate = date || new Date().toISOString().split('T')[0];
     const currentTime = timeOfDay || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-    // SPEED-OPTIMIZED system prompt - minimal data, fast retrieval
-    const systemPrompt = `You are a fast London activity curator. Return ONLY essential data in compact format.
+    // ULTRA-FAST system prompt - minimal processing, essential data only
+    const systemPrompt = `Fast London activity curator. Essential data only. Max 10 results.
 
-SPEED RULES:
-- Keep responses SHORT and STRUCTURED
-- NO long descriptions or paragraphs
-- Return ONLY 10 activities maximum
-- Use shallow data - no deep scraping
-- Skip activities with missing coordinates or prices
+INCLUDE: Pop-ups, hidden bars, art, immersive dining, escape rooms, rooftop venues, markets
+EXCLUDE: Hotels, chains, tourist traps, parks, unknowns, anything without coordinates/price
 
-FOCUS: Unique experiences (pop-ups, hidden bars, immersive dining, art, escape rooms, markets, rooftop venues)
+SCORING (0-100 total):
+uniqueness(0-35) + preference(0-25) + time(0-20) + budget(0-10) + proximity(0-10) = match_percentage
 
-EXCLUDE: Hotels, chains, tourist traps, generic parks, unknowns
+Fast shallow search only. No deep scraping. No long text. Structured output only.`;
 
-SCORING (fast formula, 0-100):
-- uniqueness_score (0-35): How special
-- preference_score (0-25): User interest match
-- time_fit_score (0-20): Time/atmosphere fit
-- budget_score (0-10): Price fit
-- proximity_score (0-10): Distance convenience
-Total MUST = match_percentage (0-100)`;
+    const userPrompt = `10 unique London activities near ${lat},${lng} (${radius}km). Fast search only.
 
-    const userPrompt = `Find 10 unique London experiences near ${lat}, ${lng} (${radius}km radius).
+Time: ${currentDate} ${currentTime} | Budget: £${budget} | Interests: ${userPreferences.length > 0 ? userPreferences.join(', ') : 'unique'}
 
-Context:
-- Location: ${lat}, ${lng} (calculate ALL distances from here)
-- Time: ${currentDate}, ${currentTime}
-- Budget: £${budget} max
-- Interests: ${userPreferences.length > 0 ? userPreferences.join(', ') : 'unique experiences'}
+Per activity provide:
+- name (short)
+- category
+- area
+- latitude, longitude, address
+- price_level (£ number)
+- distance_km (from ${lat},${lng})
+- travel_time_minutes (public transport from ${lat},${lng})
+- vibe (1 line)
+- what_makes_it_special (1 line)
+- Scores: uniqueness(0-35) + preference(0-25) + time(0-20) + budget(0-10) + proximity(0-10) = match_percentage(0-100)
 
-Priority: Pop-ups, hidden bars, immersive dining, art, escape rooms, rooftop venues, markets
-
-Requirements per activity:
-- Name (short, catchy)
-- Category
-- Area
-- Exact coordinates + address
-- Price in £ (specific number)
-- Distance in km from ${lat}, ${lng}
-- Travel time in minutes (public transport from ${lat}, ${lng})
-- Brief vibe (1 sentence max)
-- What makes it special (1 sentence)
-- Component scores:
-  * uniqueness_score (0-35)
-  * preference_score (0-25)
-  * time_fit_score (0-20)
-  * budget_score (0-10)
-  * proximity_score (0-10)
-  * match_percentage = sum of above (0-100)
-
-EXCLUDE: Hotels, chains, tourist traps, generic parks, anything without coordinates/price
-
-Keep it COMPACT and FAST. No long descriptions.`;
+EXCLUDE: Hotels, chains, parks, tourist traps, missing data. Keep compact.`;
 
     console.log('Calling Perplexity API for activity generation...');
 
@@ -187,8 +162,8 @@ Keep it COMPACT and FAST. No long descriptions.`;
             }
           }
         },
-        temperature: 0.3,
-        max_tokens: 4000,
+        temperature: 0.2,
+        max_tokens: 2500,
       }),
     });
 
@@ -227,9 +202,9 @@ Keep it COMPACT and FAST. No long descriptions.`;
 
     const activities = parsedResponse.activities || [];
 
-    // Validate and normalize scores - minimal processing
+    // Fast normalization - minimal processing
     const activitiesWithMaps = activities.map((activity: any) => {
-      // Calculate match_percentage from component scores
+      // Quick score validation
       const componentSum = 
         (activity.uniqueness_score || 0) +
         (activity.preference_score || 0) +
@@ -237,40 +212,29 @@ Keep it COMPACT and FAST. No long descriptions.`;
         (activity.budget_score || 0) +
         (activity.proximity_score || 0);
       
-      let match_percentage = activity.match_percentage || componentSum;
+      const match_percentage = Math.min(100, Math.max(0, componentSum));
+      const encodedName = encodeURIComponent(activity.name || 'activity');
       
-      // Recalculate if mismatch
-      if (Math.abs(match_percentage - componentSum) > 1) {
-        match_percentage = componentSum;
-      }
-      
-      // Clamp to 0-100
-      match_percentage = Math.min(100, Math.max(0, match_percentage));
-      
-      const encodedName = encodeURIComponent(activity.name);
-      
-      // Generate Google Maps link
-      let mapsLink;
-      if (activity.latitude && activity.longitude && 
-          !isNaN(activity.latitude) && !isNaN(activity.longitude)) {
-        mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodedName},${activity.latitude},${activity.longitude}`;
-      } else {
-        mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodedName}`;
-      }
+      // Fast Google Maps link generation
+      const hasCoords = activity.latitude && activity.longitude && 
+                        !isNaN(activity.latitude) && !isNaN(activity.longitude);
+      const mapsLink = hasCoords 
+        ? `https://www.google.com/maps/search/?api=1&query=${encodedName},${activity.latitude},${activity.longitude}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodedName}`;
       
       return {
-        id: `perplexity-${activity.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: activity.name,
         category: activity.category,
-        area: activity.area,
-        address: activity.address,
-        latitude: activity.latitude,
-        longitude: activity.longitude,
-        vibe: activity.vibe,
-        what_makes_it_special: activity.what_makes_it_special,
+        area: activity.area || 'London',
+        address: activity.address || '',
+        latitude: hasCoords ? activity.latitude : null,
+        longitude: hasCoords ? activity.longitude : null,
+        vibe: activity.vibe || '',
+        what_makes_it_special: activity.what_makes_it_special || '',
         price_level: activity.price_level || 0,
-        distance_km: activity.distance_km,
-        travel_time_minutes: activity.travel_time_minutes,
+        distance_km: activity.distance_km || 0,
+        travel_time_minutes: activity.travel_time_minutes || 0,
         uniqueness_score: Math.min(35, Math.max(0, activity.uniqueness_score || 0)),
         preference_score: Math.min(25, Math.max(0, activity.preference_score || 0)),
         time_fit_score: Math.min(20, Math.max(0, activity.time_fit_score || 0)),
