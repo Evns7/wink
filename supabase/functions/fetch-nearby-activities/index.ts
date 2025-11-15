@@ -14,9 +14,39 @@ serve(async (req) => {
   try {
     const { lat, lng, radius = 1000, category } = await req.json();
 
+    // Validate required inputs
     if (!lat || !lng) {
       return new Response(
         JSON.stringify({ error: 'Latitude and longitude are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate input ranges
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      return new Response(
+        JSON.stringify({ error: 'Latitude and longitude must be numbers' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (lat < -90 || lat > 90) {
+      return new Response(
+        JSON.stringify({ error: 'Latitude must be between -90 and 90' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (lng < -180 || lng > 180) {
+      return new Response(
+        JSON.stringify({ error: 'Longitude must be between -180 and 180' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (radius < 100 || radius > 5000) {
+      return new Response(
+        JSON.stringify({ error: 'Radius must be between 100 and 5000 meters' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

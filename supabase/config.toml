@@ -1,7 +1,7 @@
 project_id = "lwhjjtxtqqhdzhorhhit"
 
 [functions.fetch-nearby-activities]
-verify_jwt = false
+verify_jwt = true
 
 [functions.google-calendar-oauth]
 verify_jwt = true
