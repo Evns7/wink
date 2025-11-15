@@ -489,11 +489,11 @@ export const SmartRecommendations = () => {
                             View event details →
                           </a>
                         )}
-                        {activity.google_maps_link && (
+                        {(activity.lat && activity.lng) && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => window.open(activity.google_maps_link, '_blank')}
+                            onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${activity.lat},${activity.lng}`, '_blank')}
                             className="text-xs"
                           >
                             <Navigation className="h-3 w-3 mr-1" />
