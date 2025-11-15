@@ -338,6 +338,45 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          activity_address: string | null
+          activity_id: string
+          activity_name: string
+          activity_time: string
+          created_at: string
+          id: string
+          sender_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activity_address?: string | null
+          activity_id: string
+          activity_name: string
+          activity_time: string
+          created_at?: string
+          id?: string
+          sender_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          activity_address?: string | null
+          activity_id?: string
+          activity_name?: string
+          activity_time?: string
+          created_at?: string
+          id?: string
+          sender_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       preferences: {
         Row: {
           category: string
