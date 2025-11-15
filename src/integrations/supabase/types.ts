@@ -109,6 +109,50 @@ export type Database = {
           },
         ]
       }
+      activity_swipes: {
+        Row: {
+          activity_id: string
+          calendar_event_created: boolean | null
+          created_at: string
+          friend_id: string
+          id: string
+          matched_at: string | null
+          response: string
+          suggested_time: string
+          user_id: string
+        }
+        Insert: {
+          activity_id: string
+          calendar_event_created?: boolean | null
+          created_at?: string
+          friend_id: string
+          id?: string
+          matched_at?: string | null
+          response: string
+          suggested_time: string
+          user_id: string
+        }
+        Update: {
+          activity_id?: string
+          calendar_event_created?: boolean | null
+          created_at?: string
+          friend_id?: string
+          id?: string
+          matched_at?: string | null
+          response?: string
+          suggested_time?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_swipes_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_connections: {
         Row: {
           access_token: string | null
@@ -599,6 +643,15 @@ export type Database = {
             }
             Returns: string
           }
+      check_activity_match: {
+        Args: {
+          p_activity_id: string
+          p_friend_id: string
+          p_suggested_time: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       disablelongtransactions: { Args: never; Returns: string }
       dropgeometrycolumn:
         | {

@@ -72,6 +72,9 @@ export const Header = () => {
 
     if (path === "/dashboard") {
       crumbs.push({ label: "Dashboard", path: "/dashboard", active: true });
+    } else if (path === "/make-plans") {
+      crumbs.push({ label: "Dashboard", path: "/dashboard", active: false });
+      crumbs.push({ label: "Make Plans", path: "/make-plans", active: true });
     } else if (path === "/calendar") {
       crumbs.push({ label: "Dashboard", path: "/dashboard", active: false });
       crumbs.push({ label: "Calendar", path: "/calendar", active: true });
@@ -148,6 +151,13 @@ export const Header = () => {
             <Link to="/dashboard">
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+          </Button>
+          
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/make-plans">
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">Make Plans</span>
             </Link>
           </Button>
           
