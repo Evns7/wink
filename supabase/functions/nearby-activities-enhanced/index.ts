@@ -45,7 +45,7 @@ serve(async (req) => {
       );
     }
 
-    const { lat, lng, radius = 5 } = validationResult.data;
+    const { lat, lng, radius = 2 } = validationResult.data; // Reduced default radius to 2km
 
     // Get user profile, preferences, and activity history
     const [profileResult, preferencesResult, activityHistoryResult] = await Promise.all([
@@ -87,35 +87,61 @@ serve(async (req) => {
 
     console.log('Fetching nearby activities from Overpass API...');
     
-    // Fetch from Overpass API - expanded categories
-    const overpassQuery = `
-      [out:json][timeout:25];
-      (
-        node["tourism"](around:${radius * 1000},${lat},${lng});
-        node["leisure"~"sports_centre|fitness_centre|stadium|swimming_pool|park|playground|pitch|track|garden"](around:${radius * 1000},${lat},${lng});
-        node["amenity"~"restaurant|cafe|bar|cinema|theatre|library|community_centre|arts_centre|marketplace"](around:${radius * 1000},${lat},${lng});
-        node["shop"~"mall|supermarket|clothes|books|sports|music|art|gift|bakery"](around:${radius * 1000},${lat},${lng});
-        node["sport"](around:${radius * 1000},${lat},${lng});
-        way["leisure"~"sports_centre|fitness_centre|stadium|swimming_pool|park"](around:${radius * 1000},${lat},${lng});
-        way["amenity"~"restaurant|cafe|bar|cinema|theatre|library|arts_centre"](around:${radius * 1000},${lat},${lng});
-        way["shop"~"mall|supermarket|department_store"](around:${radius * 1000},${lat},${lng});
-      );
-      out body;
-      >;
-      out skel qt;
-    `;
+    // Retry logic with decreasing radius
+    let activities: any[] = [];
+    let currentRadius = radius;
+    let attempts = 0;
+    const maxAttempts = 3;
 
-    const overpassResponse = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      body: overpassQuery,
-    });
+    while (attempts < maxAttempts && activities.length === 0) {
+      attempts++;
+      console.log(`Attempt ${attempts}: Fetching with radius ${currentRadius}km...`);
+      
+      try {
+        // Simplified query with most popular categories only
+        const overpassQuery = `
+          [out:json][timeout:15];
+          (
+            node["tourism"](around:${currentRadius * 1000},${lat},${lng});
+            node["leisure"~"sports_centre|park|stadium"](around:${currentRadius * 1000},${lat},${lng});
+            node["amenity"~"restaurant|cafe|bar|cinema|theatre"](around:${currentRadius * 1000},${lat},${lng});
+            node["shop"~"mall|supermarket"](around:${currentRadius * 1000},${lat},${lng});
+          );
+          out body 100;
+        `;
 
-    if (!overpassResponse.ok) {
-      throw new Error('Failed to fetch from Overpass API');
+        const overpassResponse = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: overpassQuery,
+          headers: { 'Content-Type': 'text/plain' },
+        });
+
+        if (!overpassResponse.ok) {
+          throw new Error(`HTTP ${overpassResponse.status}: ${overpassResponse.statusText}`);
+        }
+
+        const overpassData = await overpassResponse.json();
+        activities = overpassData.elements || [];
+        
+        if (activities.length > 0) {
+          console.log(`Successfully fetched ${activities.length} activities`);
+          break;
+        }
+        
+        console.log(`No activities found with ${currentRadius}km radius`);
+      } catch (error) {
+        console.error(`Attempt ${attempts} failed:`, error);
+        if (attempts < maxAttempts) {
+          currentRadius = currentRadius / 2; // Halve the radius for next attempt
+          console.log(`Retrying with smaller radius: ${currentRadius}km`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+        }
+      }
     }
 
-    const overpassData = await overpassResponse.json();
-    const activities = overpassData.elements || [];
+    if (activities.length === 0) {
+      throw new Error('Failed to fetch activities after multiple attempts');
+    }
 
     console.log(`Found ${activities.length} activities from Overpass`);
 
