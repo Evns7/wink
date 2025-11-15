@@ -142,7 +142,6 @@ Each activity MUST have:
 10. **📍 DISTANCE (CRITICAL)**: Precise distance in km from coordinates ${lat}, ${lng} - calculate accurately
 11. **⏱️ TRAVEL TIME (CRITICAL)**: Realistic travel time in minutes by public transport from ${lat}, ${lng} - be accurate
 12. **Match score**: Realistic 0-100% based on uniqueness + user preferences + time + budget
-13. **High-quality thumbnail image**
 
 ❌ ABSOLUTELY DO NOT INCLUDE:
 - Generic chain restaurants or cafes
@@ -222,12 +221,11 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
                       budget_score: { type: 'number', description: 'Budget & value 0-10', minimum: 0, maximum: 10 },
                       proximity_score: { type: 'number', description: 'Distance score 0-10', minimum: 0, maximum: 10 },
                       reasoning: { type: 'string', description: 'Why this is exciting and matches user' },
-                      thumbnail_url: { type: 'string', description: 'High-quality image URL' },
                     },
                     required: [
                       'name', 'category', 'area', 'latitude', 'longitude', 'address',
                       'description', 'what_makes_it_special', 'vibe', 'match_percentage',
-                      'distance_km', 'travel_time_minutes', 'reasoning', 'thumbnail_url'
+                      'distance_km', 'travel_time_minutes', 'reasoning'
                     ],
                     additionalProperties: false
                   }
@@ -239,7 +237,7 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
           }
         },
         temperature: 0.3,
-        max_tokens: 4000,
+        max_tokens: 6000,
       }),
     });
 
@@ -255,6 +253,11 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
     const perplexityData = await perplexityResponse.json();
     console.log('Perplexity response:', JSON.stringify(perplexityData, null, 2));
 
+    // Check if response was truncated
+    if (perplexityData.choices?.[0]?.finish_reason === 'length') {
+      console.warn('Response was truncated due to token limit');
+    }
+
     const content = perplexityData.choices?.[0]?.message?.content;
     if (!content) {
       throw new Error('No content in Perplexity response');
@@ -265,7 +268,18 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
       parsedResponse = JSON.parse(content);
     } catch (parseError) {
       console.error('Failed to parse Perplexity response:', content);
-      throw new Error('Invalid JSON response from AI');
+      // Try to extract partial JSON if possible
+      const jsonMatch = content.match(/\{[\s\S]*"activities"[\s\S]*\[[\s\S]*\]/);
+      if (jsonMatch) {
+        try {
+          parsedResponse = { activities: [] };
+          console.log('Response truncated, returning empty activities array');
+        } catch {
+          throw new Error('Invalid JSON response from AI');
+        }
+      } else {
+        throw new Error('Invalid JSON response from AI');
+      }
     }
 
     const activities = parsedResponse.activities || [];
