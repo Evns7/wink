@@ -126,13 +126,29 @@ Deno.serve(async (req) => {
 
     console.log('Friend request created:', friendship);
 
+    // Fetch sender's profile for nickname
+    const { data: senderProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('nickname')
+      .eq('id', user.id)
+      .single();
+
+    // Fetch target user's profile for nickname
+    const { data: targetProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('nickname')
+      .eq('id', targetUser.id)
+      .single();
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         friendship,
+        senderNickname: senderProfile?.nickname || user.email?.split('@')[0] || 'Someone',
         targetUser: {
           id: targetUser.id,
-          email: targetUser.email
+          email: targetUser.email,
+          nickname: targetProfile?.nickname || targetUser.email?.split('@')[0] || 'Friend'
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

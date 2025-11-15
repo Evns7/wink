@@ -18,6 +18,8 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [preferences, setPreferences] = useState<any[]>([]);
+  const [nickname, setNickname] = useState("");
+  const [savingNickname, setSavingNickname] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -38,6 +40,7 @@ export default function Profile() {
       .single();
 
     setProfile(profileData);
+    setNickname(profileData?.nickname || "");
 
     // Fetch preferences
     const { data: prefsData } = await supabase
@@ -47,6 +50,46 @@ export default function Profile() {
 
     setPreferences(prefsData || []);
     setLoading(false);
+  };
+
+  const saveNickname = async () => {
+    if (!nickname.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Nickname required",
+        description: "Please enter a nickname",
+      });
+      return;
+    }
+
+    setSavingNickname(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ nickname: nickname.trim() })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Nickname saved!",
+        description: "Your friends will now see this name",
+      });
+
+      setProfile({ ...profile, nickname: nickname.trim() });
+    } catch (error) {
+      console.error("Error saving nickname:", error);
+      toast({
+        variant: "destructive",
+        title: "Failed to save",
+        description: "Please try again",
+      });
+    } finally {
+      setSavingNickname(false);
+    }
   };
 
   if (loading) {
@@ -80,6 +123,42 @@ export default function Profile() {
           </div>
 
           <div className="grid gap-6">
+            {/* Nickname Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-primary" />
+                  Display Name
+                </CardTitle>
+                <CardDescription>How your friends see you</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="nickname">Nickname</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input 
+                        id="nickname"
+                        value={nickname} 
+                        onChange={(e) => setNickname(e.target.value)}
+                        placeholder="Enter your nickname"
+                        maxLength={50}
+                      />
+                      <Button 
+                        onClick={saveNickname}
+                        disabled={savingNickname || !nickname.trim() || nickname === profile?.nickname}
+                      >
+                        {savingNickname ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      This name will appear in friend requests and activity suggestions
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Location Information */}
             <Card>
               <CardHeader>

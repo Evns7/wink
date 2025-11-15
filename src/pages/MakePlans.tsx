@@ -136,7 +136,7 @@ export default function MakePlans() {
           const friendId = participants.find((id: string) => id !== user.id) || participants[0];
           
           if (friendId && friendId !== user.id) {
-            // Fetch friend email
+            // Fetch friend email and nickname
             const { data: friendData } = await supabase.functions.invoke('get-user-email', {
               body: { userId: friendId }
             });
@@ -144,7 +144,7 @@ export default function MakePlans() {
             allSuggestions.push({
               activity,
               friendId,
-              friendEmail: friendData?.email || 'Unknown Friend',
+              friendEmail: friendData?.nickname || friendData?.email || 'Unknown Friend',
               suggestedTime: block.start,
               context: {
                 score_breakdown: activity.score_breakdown,

@@ -38,12 +38,12 @@ export const FriendsList = () => {
       return;
     }
 
-    // Fetch friend emails from auth.users
+    // Fetch friend emails and nicknames from auth.users and profiles
     const friendsWithEmails = await Promise.all(
       (friendships || []).map(async (friendship) => {
         const friendId = friendship.user_id === user.id ? friendship.friend_id : friendship.user_id;
         
-        // Call edge function to get user email
+        // Call edge function to get user email and nickname
         const { data, error } = await supabase.functions.invoke('get-user-email', {
           body: { userId: friendId }
         });
@@ -51,6 +51,7 @@ export const FriendsList = () => {
         return {
           ...friendship,
           friendEmail: data?.email || 'Unknown User',
+          friendNickname: data?.nickname || data?.email?.split('@')[0] || 'Friend',
         };
       })
     );
@@ -70,7 +71,21 @@ export const FriendsList = () => {
       console.log('Found pending requests:', pending);
     }
 
-    setPendingRequests(pending || []);
+    // Fetch sender nicknames for pending requests
+    const pendingWithSenders = await Promise.all(
+      (pending || []).map(async (request) => {
+        const { data } = await supabase.functions.invoke('get-user-email', {
+          body: { userId: request.user_id }
+        });
+        return {
+          ...request,
+          senderEmail: data?.email || 'Unknown User',
+          senderNickname: data?.nickname || data?.email?.split('@')[0] || 'Someone',
+        };
+      })
+    );
+
+    setPendingRequests(pendingWithSenders);
   };
 
   const sendFriendRequest = async () => {
@@ -104,7 +119,7 @@ export const FriendsList = () => {
 
       toast({
         title: "Friend request sent!",
-        description: `Request sent to ${searchEmail}`,
+        description: `Request sent to ${data.targetUser?.nickname || searchEmail}`,
       });
       setSearchEmail("");
       
@@ -198,9 +213,12 @@ export const FriendsList = () => {
               >
                 <div className="flex items-center gap-3">
                   <Avatar>
-                    <AvatarFallback>?</AvatarFallback>
+                    <AvatarFallback>{request.senderNickname?.[0]?.toUpperCase() || '?'}</AvatarFallback>
                   </Avatar>
-                  <span className="text-sm">Friend request</span>
+                  <div>
+                    <p className="text-sm font-medium">{request.senderNickname || 'Someone'}</p>
+                    <p className="text-xs text-muted-foreground">{request.senderEmail}</p>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -243,12 +261,13 @@ export const FriendsList = () => {
                 >
                   <Avatar>
                     <AvatarFallback>
-                      {friendship.friendEmail?.[0]?.toUpperCase() || '👤'}
+                      {friendship.friendNickname?.[0]?.toUpperCase() || '👤'}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="text-sm flex-1">
-                    {friendship.friendEmail || 'Loading...'}
-                  </span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{friendship.friendNickname || 'Friend'}</p>
+                    <p className="text-xs text-muted-foreground">{friendship.friendEmail}</p>
+                  </div>
                   <Button size="sm" variant="outline" className="rounded-full">
                     View Calendar
                   </Button>

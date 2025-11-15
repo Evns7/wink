@@ -30,7 +30,7 @@ serve(async (req) => {
 
     const { userId } = await req.json();
 
-    // Use service role key to access auth.users
+    // Use service role key to access auth.users and profile
     const { data: userData, error: userError } = await supabaseClient.auth.admin.getUserById(userId);
 
     if (userError || !userData) {
@@ -40,8 +40,18 @@ serve(async (req) => {
       );
     }
 
+    // Fetch nickname from profiles table
+    const { data: profileData } = await supabaseClient
+      .from('profiles')
+      .select('nickname')
+      .eq('id', userId)
+      .single();
+
     return new Response(
-      JSON.stringify({ email: userData.user.email }),
+      JSON.stringify({ 
+        email: userData.user.email,
+        nickname: profileData?.nickname || null
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
