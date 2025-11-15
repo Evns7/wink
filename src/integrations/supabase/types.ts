@@ -444,6 +444,13 @@ export type Database = {
             referencedRelation: "calendar_events"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "scheduled_activities_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "friend_calendar_view"
+            referencedColumns: ["id"]
+          },
         ]
       }
       spatial_ref_sys: {
@@ -472,6 +479,39 @@ export type Database = {
       }
     }
     Views: {
+      friend_calendar_view: {
+        Row: {
+          calendar_type: string | null
+          end_time: string | null
+          id: string | null
+          is_all_day: boolean | null
+          location: string | null
+          start_time: string | null
+          title: string | null
+          user_id: string | null
+        }
+        Insert: {
+          calendar_type?: never
+          end_time?: string | null
+          id?: string | null
+          is_all_day?: boolean | null
+          location?: string | null
+          start_time?: string | null
+          title?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          calendar_type?: never
+          end_time?: string | null
+          id?: string | null
+          is_all_day?: boolean | null
+          location?: string | null
+          start_time?: string | null
+          title?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       geography_columns: {
         Row: {
           coord_dimension: number | null
