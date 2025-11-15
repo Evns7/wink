@@ -108,6 +108,8 @@ SCORING (0-100%, be critical):
 - Budget & Value (0-10%): Worth the price
 - Proximity (0-10%): Reasonable distance
 
+IMPORTANT: Calculate each component score carefully. The sum of all 5 component scores equals the overall match percentage (0-100).
+
 Focus on EXPERIENCES over places. Make every suggestion exciting.`;
 
     const userPrompt = `Curate 10 EXCEPTIONAL and UNIQUE experiences in London near ${lat}, ${lng} (within ${radius}km).
@@ -141,7 +143,13 @@ Each activity MUST have:
 9. **💰 PRICE (CRITICAL)**: Exact price in £ - be specific (e.g., £15 entry, £35 dinner, £0 for free events)
 10. **📍 DISTANCE (CRITICAL)**: Precise distance in km from coordinates ${lat}, ${lng} - calculate accurately
 11. **⏱️ TRAVEL TIME (CRITICAL)**: Realistic travel time in minutes by public transport from ${lat}, ${lng} - be accurate
-12. **Match score**: Realistic 0-100% based on uniqueness + user preferences + time + budget
+12. **Component Scores (CRITICAL - must add up to 0-100)**:
+   - uniqueness_score (0-35): How special/memorable the experience is
+   - preference_score (0-25): How well it matches stated preferences
+   - time_fit_score (0-20): How well it fits the time/date/atmosphere
+   - budget_score (0-10): Value for money within budget
+   - proximity_score (0-10): How convenient the location is
+   NOTE: These 5 scores should sum to create the overall match (0-100)
 
 ❌ ABSOLUTELY DO NOT INCLUDE:
 - Generic chain restaurants or cafes
@@ -214,17 +222,17 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
                       price_level: { type: 'number', description: 'Price in GBP (0 for free)' },
                       distance_km: { type: 'number', description: 'Distance from user in km' },
                       travel_time_minutes: { type: 'number', description: 'Travel time by public transport' },
-                      match_percentage: { type: 'number', description: 'Overall match 0-100', minimum: 0, maximum: 100 },
-                      uniqueness_score: { type: 'number', description: 'Uniqueness & experience 0-35', minimum: 0, maximum: 35 },
-                      preference_score: { type: 'number', description: 'Preference match 0-25', minimum: 0, maximum: 25 },
-                      time_fit_score: { type: 'number', description: 'Time & atmosphere 0-20', minimum: 0, maximum: 20 },
-                      budget_score: { type: 'number', description: 'Budget & value 0-10', minimum: 0, maximum: 10 },
-                      proximity_score: { type: 'number', description: 'Distance score 0-10', minimum: 0, maximum: 10 },
+                      uniqueness_score: { type: 'number', description: 'How unique/special (0-35)', minimum: 0, maximum: 35 },
+                      preference_score: { type: 'number', description: 'User preference match (0-25)', minimum: 0, maximum: 25 },
+                      time_fit_score: { type: 'number', description: 'Time & atmosphere fit (0-20)', minimum: 0, maximum: 20 },
+                      budget_score: { type: 'number', description: 'Budget & value (0-10)', minimum: 0, maximum: 10 },
+                      proximity_score: { type: 'number', description: 'Distance convenience (0-10)', minimum: 0, maximum: 10 },
                       reasoning: { type: 'string', description: 'Why this is exciting and matches user' },
                     },
                     required: [
                       'name', 'category', 'area', 'latitude', 'longitude', 'address',
-                      'description', 'what_makes_it_special', 'vibe', 'match_percentage',
+                      'description', 'what_makes_it_special', 'vibe', 
+                      'uniqueness_score', 'preference_score', 'time_fit_score', 'budget_score', 'proximity_score',
                       'distance_km', 'travel_time_minutes', 'reasoning'
                     ],
                     additionalProperties: false
@@ -276,8 +284,19 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
 
     const activities = parsedResponse.activities || [];
 
-    // Generate Google Maps links for each activity
+    // Validate and normalize scores for each activity
     const activitiesWithMaps = activities.map((activity: any) => {
+      // Calculate match_percentage from component scores (should sum to 100)
+      const componentSum = 
+        (activity.uniqueness_score || 0) +
+        (activity.preference_score || 0) +
+        (activity.time_fit_score || 0) +
+        (activity.budget_score || 0) +
+        (activity.proximity_score || 0);
+      
+      // Use calculated sum or provided match_percentage, ensure 0-100
+      const match_percentage = Math.min(100, Math.max(0, componentSum || activity.match_percentage || 50));
+      
       const encodedName = encodeURIComponent(activity.name);
       
       // Generate proper Google Maps link with fallback for missing coordinates
@@ -293,6 +312,7 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
       
       return {
         ...activity,
+        match_percentage: Math.round(match_percentage),
         google_maps_link: mapsLink,
         // Ensure all required fields are present
         id: `perplexity-${activity.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
@@ -303,7 +323,12 @@ Remember: We want activities that make people say "Oh wow, I didn't know that ex
         area: activity.area || 'Central London',
         what_makes_it_special: activity.what_makes_it_special || activity.reasoning,
         vibe: activity.vibe || 'Exciting experience',
-        uniqueness_score: activity.uniqueness_score || 0,
+        // Ensure component scores are within bounds
+        uniqueness_score: Math.min(35, Math.max(0, activity.uniqueness_score || 0)),
+        preference_score: Math.min(25, Math.max(0, activity.preference_score || 0)),
+        time_fit_score: Math.min(20, Math.max(0, activity.time_fit_score || 0)),
+        budget_score: Math.min(10, Math.max(0, activity.budget_score || 0)),
+        proximity_score: Math.min(10, Math.max(0, activity.proximity_score || 0)),
         // Ensure coordinates are valid numbers or undefined
         latitude: activity.latitude && !isNaN(activity.latitude) ? activity.latitude : undefined,
         longitude: activity.longitude && !isNaN(activity.longitude) ? activity.longitude : undefined,
