@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.timezone]
 verify_jwt = false
+
+[functions.scrape-live-events]
+verify_jwt = true
+
+[functions.nearby-activities-enhanced]
+verify_jwt = true

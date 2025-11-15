@@ -124,6 +124,7 @@ serve(async (req) => {
         hobby.toLowerCase().includes(eventCategory)
       );
       
+      // Preference scoring: max 30 points
       if (matchingPrefs.length > 0) {
         scoreBreakdown.preference = 30;
       } else {
@@ -131,7 +132,8 @@ serve(async (req) => {
         const partialMatches = selectedHobbies.filter((hobby: string) =>
           descLower.includes(hobby.toLowerCase())
         );
-        scoreBreakdown.preference = Math.min(partialMatches.length * 10, 20);
+        // Partial match: max 20 points (2 points per hobby match, capped at 20)
+        scoreBreakdown.preference = Math.min(partialMatches.length * 2, 20);
       }
 
       if (freeBlock?.start && event.date) {
@@ -212,8 +214,9 @@ serve(async (req) => {
       const popularityScore = event.popularityScore || 0.5;
       scoreBreakdown.popularity = Math.round(popularityScore * 10);
 
+      // Sum all scores and ensure it never exceeds 100
       const totalScore = Object.values(scoreBreakdown).reduce((a: any, b: any) => a + b, 0) as number;
-      const finalScore = Math.min(totalScore, 100);
+      const finalScore = Math.min(Math.round(totalScore), 100);
 
       return {
         id: `event_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
