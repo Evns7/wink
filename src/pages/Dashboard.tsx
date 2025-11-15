@@ -1,18 +1,35 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Header } from "@/components/Header";
 import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Calendar, Sparkles, MapPin, LogOut } from "lucide-react";
+import ActivityCard from "@/components/ActivityCard";
+import WeatherWidget from "@/components/WeatherWidget";
+import { FriendsList } from "@/components/FriendsList";
+import { EventsList } from "@/components/events/EventsList";
+import { SmartRecommendations } from "@/components/SmartRecommendations";
+import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import WeatherWidget from "@/components/WeatherWidget";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [profile, setProfile] = useState<any>(null);
+  const [timeOfDay, setTimeOfDay] = useState<'sunrise' | 'afternoon' | 'sunset' | 'night'>('afternoon');
+  const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+  const [calendarConnected, setCalendarConnected] = useState(false);
 
   useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 10) setTimeOfDay('sunrise');
+    else if (hour >= 10 && hour < 17) setTimeOfDay('afternoon');
+    else if (hour >= 17 && hour < 20) setTimeOfDay('sunset');
+    else setTimeOfDay('night');
+
     checkAuth();
   }, []);
 
@@ -35,154 +52,227 @@ const Dashboard = () => {
     }
 
     setProfile(profileData);
+
+    const { data: calendarData } = await supabase
+      .from('calendar_connections')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    setCalendarConnected(!!calendarData);
+
+    await fetchActivities(profileData.home_lat, profileData.home_lng);
     setLoading(false);
   };
 
-  const handleMakePlans = () => {
-    navigate('/make-plans');
+  const fetchActivities = async (lat: number, lng: number) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-nearby-activities', {
+        body: { lat, lng, radius: 1000 }
+      });
+
+      if (error) throw error;
+
+      setActivities(data.activities || []);
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+      toast({
+        variant: "destructive",
+        title: "Could not load activities",
+        description: "Trying with a smaller search area. Please wait...",
+      });
+      setActivities([]); // Clear activities on error
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-wink flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
-    );
-  }
+  const handleConnectCalendar = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('google-calendar-oauth', {
+        body: { action: 'get_auth_url' }
+      });
 
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+      if (error) throw error;
+
+      window.location.href = data.authUrl;
+    } catch (error) {
+      console.error('Error connecting calendar:', error);
+      toast({
+        variant: "destructive",
+        title: "Connection Failed",
+        description: "Could not connect to Google Calendar.",
+      });
+    }
+  };
+
+  const handleSyncCalendar = async () => {
+    try {
+      const { error } = await supabase.functions.invoke('sync-calendar-events');
+
+      if (error) throw error;
+
+      toast({
+        title: "Calendar Synced!",
+        description: "Your events have been updated.",
+      });
+    } catch (error) {
+      console.error('Error syncing calendar:', error);
+      toast({
+        variant: "destructive",
+        title: "Sync Failed",
+        description: "Could not sync calendar events.",
+      });
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
+  };
+
+  const greeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 17) return "Good Afternoon";
+    return "Good Evening";
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-wink p-8 relative overflow-hidden">
-      {/* Top left - My Profile button */}
-      <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="absolute top-8 left-8"
-      >
-        <Button
-          onClick={() => navigate('/profile')}
-          className="bg-white text-primary font-display italic text-xl px-8 py-6 rounded-full hover:bg-white/90 shadow-lg"
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/10 to-background">
+      <Header />
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">{greeting()}! ✨</h1>
+          <p className="text-xl text-muted-foreground">Here's what's perfect for your free time today</p>
+        </div>
+
+        {/* Weather Widget */}
+        <div className="mb-8">
+          <WeatherWidget />
+        </div>
+
+        {/* Smart Recommendations - Main Feature */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8"
         >
-          my profile
-        </Button>
-      </motion.div>
+          <SmartRecommendations />
+        </motion.div>
 
-      {/* Top right - Wink logo */}
-      <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="absolute top-8 right-8"
-      >
-        <h1 className="text-5xl font-display italic text-white">wink</h1>
-      </motion.div>
+        {/* Friends List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="mb-8"
+        >
+          <FriendsList />
+        </motion.div>
 
-      {/* Main content */}
-      <div className="max-w-7xl mx-auto pt-32 grid grid-cols-12 gap-6">
-        {/* Left column */}
-        <div className="col-span-3 space-y-6">
-          {/* Make Plans button */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Button
-              onClick={handleMakePlans}
-              className="w-full h-40 bg-transparent border-4 border-white/40 text-white hover:bg-white/10 rounded-3xl"
-            >
-              <span className="text-6xl font-bold tracking-wider uppercase" style={{ 
-                WebkitTextStroke: '2px rgba(255,255,255,0.6)',
-                WebkitTextFillColor: 'transparent'
-              }}>
-                MAKE<br/>PLANS
-              </span>
+        {/* Events List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="mb-8"
+        >
+          <EventsList />
+        </motion.div>
+
+        {/* Today's Schedule Preview */}
+        <Card className="glass mb-8">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-6 h-6 text-primary" />
+              Today's Schedule
+            </CardTitle>
+            <Link to="/calendar">
+              <Button variant="ghost" className="rounded-xl">View Full Calendar</Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {/* Mock calendar events */}
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30">
+                <div className="text-center">
+                  <div className="text-sm text-muted-foreground">9:00 AM</div>
+                  <div className="text-sm font-medium">10:30 AM</div>
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold">Team Meeting</div>
+                  <div className="text-sm text-muted-foreground">Conference Room A</div>
+                </div>
+                <div className="w-2 h-full bg-primary rounded-full"></div>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/10 border-2 border-accent/30">
+                <div className="text-center">
+                  <div className="text-sm text-muted-foreground">10:30 AM</div>
+                  <div className="text-sm font-medium">2:00 PM</div>
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-accent">⏰ Free Time - 3.5 hours</div>
+                  <div className="text-sm text-muted-foreground">Perfect for activities!</div>
+                </div>
+                <Sparkles className="w-6 h-6 text-accent" />
+              </div>
+
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30">
+                <div className="text-center">
+                  <div className="text-sm text-muted-foreground">2:00 PM</div>
+                  <div className="text-sm font-medium">4:00 PM</div>
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold">Client Presentation</div>
+                  <div className="text-sm text-muted-foreground">Zoom Call</div>
+                </div>
+                <div className="w-2 h-full bg-category-shopping rounded-full"></div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recommended Activities */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-3xl font-bold">Perfect for Your 3.5 Hour Window</h2>
+            <Button className="rounded-xl">
+              <Sparkles className="w-4 h-4 mr-2" />
+              AI Wildcard Ideas
             </Button>
-          </motion.div>
+          </div>
 
-          {/* To-do card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-3xl p-6 pb-12 relative shadow-xl"
-            style={{ clipPath: 'polygon(0 0, 100% 0, 100% 85%, 50% 100%, 0 85%)' }}
-          >
-            <h3 className="text-3xl font-display italic text-primary mb-4">to-do</h3>
-            <div className="space-y-2 text-gray-600">
-              <p className="text-sm">• Check friend schedules</p>
-              <p className="text-sm">• Update preferences</p>
-              <p className="text-sm">• Review activity matches</p>
-            </div>
-          </motion.div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {activities.map((activity) => (
+              <ActivityCard key={activity.id} activity={activity} />
+            ))}
+          </div>
         </div>
 
-        {/* Center column - Schedule cards */}
-        <div className="col-span-6 space-y-6">
-          {/* Today */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="space-y-3"
-          >
-            <h3 className="text-white text-center text-sm tracking-widest uppercase">TODAY</h3>
-            <div className="bg-white rounded-3xl p-8 shadow-xl min-h-[300px]">
-              <p className="text-gray-400 text-center mt-20">Your schedule for today</p>
+        {/* Quick Actions */}
+        <Card className="glass">
+          <CardContent className="pt-6">
+            <div className="grid md:grid-cols-3 gap-4">
+              <Button variant="outline" className="h-auto py-4 flex-col gap-2 rounded-xl">
+                <MapPin className="w-6 h-6" />
+                <span>Find Nearby</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex-col gap-2 rounded-xl">
+                <Calendar className="w-6 h-6" />
+                <span>Next Free Slot</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex-col gap-2 rounded-xl">
+                <Sparkles className="w-6 h-6" />
+                <span>Surprise Me</span>
+              </Button>
             </div>
-          </motion.div>
-
-          {/* Tomorrow */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="space-y-3"
-          >
-            <h3 className="text-white text-center text-sm tracking-widest uppercase">TOMORROW</h3>
-            <div className="bg-white rounded-3xl p-8 shadow-xl min-h-[300px]">
-              <p className="text-gray-400 text-center mt-20">Your schedule for tomorrow</p>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Right column */}
-        <div className="col-span-3 space-y-6">
-          {/* Location badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-blue-400/60 backdrop-blur-sm rounded-full px-8 py-4 text-center"
-          >
-            <h3 className="text-white text-xl tracking-widest uppercase">
-              {profile?.home_address?.split(',')[0] || 'LONDON'}
-            </h3>
-          </motion.div>
-
-          {/* Weather widget */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-          >
-            <WeatherWidget />
-          </motion.div>
-
-          {/* Quote */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="pt-8"
-          >
-            <p className="text-white text-4xl font-display italic leading-tight">
-              "The only failure is not to try"
-            </p>
-          </motion.div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

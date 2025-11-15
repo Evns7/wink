@@ -59,11 +59,6 @@ export default {
         'gradient-afternoon': 'var(--gradient-afternoon)',
         'gradient-sunset': 'var(--gradient-sunset)',
         'gradient-night': 'var(--gradient-night)',
-        'gradient-wink': 'var(--gradient-wink)',
-        'gradient-wink-soft': 'var(--gradient-wink-soft)',
-      },
-      fontFamily: {
-        'display': ['Georgia', 'serif'],
       },
       borderRadius: {
         lg: "var(--radius)",
