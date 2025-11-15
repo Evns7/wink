@@ -270,22 +270,22 @@ serve(async (req) => {
     // Filter activities scoring < 50
     const filteredActivities = scoredActivities.filter((a: any) => a.totalScore >= 50);
 
-    // Sort by score and take top 5
-    const top5Activities = filteredActivities
+    // Sort by score and take top 1 (best match for this time slot)
+    const topActivity = filteredActivities
       .sort((a: any, b: any) => b.totalScore - a.totalScore)
-      .slice(0, 5);
+      .slice(0, 1);
 
-    console.log(`Filtered ${filteredActivities.length} activities scoring >= 50, selected top 5`);
+    console.log(`Filtered ${filteredActivities.length} activities scoring >= 50, selected top 1`);
 
     // If we have activities, enhance with Perplexity AI
-    let enhancedActivities = top5Activities;
-    if (top5Activities.length > 0) {
+    let enhancedActivities = topActivity;
+    if (topActivity.length > 0) {
       try {
         const { data: aiData, error: aiError } = await supabase.functions.invoke(
           'enhance-recommendations-ai',
           {
             body: {
-              activities: top5Activities.map((a: any) => ({
+              activities: topActivity.map((a: any) => ({
                 id: a.id,
                 name: a.name,
                 category: a.category,
@@ -312,7 +312,7 @@ serve(async (req) => {
         if (aiError) {
           console.error('AI enhancement error:', aiError);
         } else if (aiData?.activities) {
-          enhancedActivities = top5Activities.map((activity: any) => {
+          enhancedActivities = topActivity.map((activity: any) => {
             const enhanced = aiData.activities.find((a: any) => a.id === activity.id);
             return enhanced || activity;
           });

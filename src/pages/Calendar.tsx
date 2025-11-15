@@ -54,9 +54,14 @@ const Calendar = () => {
   const fetchCalendarEvents = async () => {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Only fetch current user's calendar events
       const { data, error } = await supabase
         .from('calendar_events')
         .select('*')
+        .eq('user_id', user.id)
         .order('start_time', { ascending: true });
 
       if (error) throw error;
