@@ -78,141 +78,173 @@ export default function MakePlans() {
     }
   };
 
-  const { refetch: refetchSuggestions } = useQuery({
-    queryKey: ['activity-suggestions'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+  // Fetch time blocks when friend is selected
+  useEffect(() => {
+    if (selectedFriendId) {
+      fetchTimeBlocks();
+      fetchFriendDetails();
+    } else {
+      setTimeBlocks([]);
+      setSelectedTimeBlock(null);
+      setMidpoint(null);
+      setFriendName("");
+    }
+  }, [selectedFriendId]);
 
-      const { data: friendships } = await supabase
-        .from('friendships')
-        .select('friend_id, user_id')
-        .eq('status', 'accepted')
-        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+  // Calculate midpoint when both user and friend locations are available
+  useEffect(() => {
+    if (selectedFriendId && selectedTimeBlock) {
+      calculateMidpointLocation();
+    }
+  }, [selectedFriendId, selectedTimeBlock]);
 
-      if (!friendships || friendships.length === 0) {
-        throw new Error('No friends found');
-      }
+  const fetchFriendDetails = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('nickname')
+        .eq('id', selectedFriendId)
+        .single();
+      
+      if (error) throw error;
+      setFriendName(data?.nickname || 'Friend');
+    } catch (error) {
+      console.error('Error fetching friend details:', error);
+    }
+  };
 
-      const friendIds = friendships.map(f => 
-        f.user_id === user.id ? f.friend_id : f.user_id
-      );
-
+  const fetchTimeBlocks = async () => {
+    if (!selectedFriendId) return;
+    
+    setLoadingTimeBlocks(true);
+    try {
       const startDate = new Date();
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + 7);
 
-      const { data: availabilityData, error: availabilityError } = await supabase.functions.invoke(
+      const { data, error } = await supabase.functions.invoke(
         'analyze-group-availability',
         {
           body: {
-            friendIds: friendIds.slice(0, 3),
+            friendIds: [selectedFriendId],
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
           },
         }
       );
 
-      if (availabilityError) throw availabilityError;
+      if (error) throw error;
 
-      const freeBlocks = availabilityData.freeBlocks || [];
+      const freeBlocks = data.freeBlocks || [];
+      setTimeBlocks(freeBlocks);
+
       if (freeBlocks.length === 0) {
-        throw new Error('No common free time found');
+        toast.info("No overlapping free time found", {
+          description: "Try selecting a different friend or check your calendar.",
+        });
       }
+    } catch (error) {
+      console.error('Error fetching time blocks:', error);
+      toast.error("Failed to fetch available times");
+    } finally {
+      setLoadingTimeBlocks(false);
+    }
+  };
 
-      const allSuggestions: ActivitySuggestion[] = [];
+  const calculateMidpointLocation = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      // Limit to 5 total recommendations
-      for (const block of freeBlocks) {
-        if (allSuggestions.length >= 5) break;
+      const [userProfile, friendProfile] = await Promise.all([
+        supabase.from('profiles').select('home_lat, home_lng').eq('id', user.id).single(),
+        supabase.from('profiles').select('home_lat, home_lng').eq('id', selectedFriendId).single(),
+      ]);
 
-        const { data: recommendationData, error: recommendationError } = await supabase.functions.invoke(
-          'smart-activity-recommendations',
-          {
-            body: {
-              freeBlock: block,
-              friendIds: friendIds.slice(0, 3),
-              weather: { temp: 15, isRaining: false },
-            },
-          }
+      if (userProfile.data?.home_lat && userProfile.data?.home_lng &&
+          friendProfile.data?.home_lat && friendProfile.data?.home_lng) {
+        const midpointCoords = calculateMidpoint(
+          userProfile.data.home_lat,
+          userProfile.data.home_lng,
+          friendProfile.data.home_lat,
+          friendProfile.data.home_lng
         );
-
-        if (recommendationError) {
-          console.error('Error getting recommendations:', recommendationError);
-          continue;
-        }
-
-        const activities = recommendationData.recommendations || [];
-        
-        // Take only the first activity (best match) and first friend from each block
-        if (activities.length > 0 && allSuggestions.length < 5) {
-          const activity = activities[0];
-          const participants = block.participants || friendIds.slice(0, 3);
-          const friendId = participants.find((id: string) => id !== user.id) || participants[0];
-          
-          if (friendId && friendId !== user.id) {
-            // Fetch friend email and nickname
-            const { data: friendData } = await supabase.functions.invoke('get-user-email', {
-              body: { userId: friendId }
-            });
-
-            allSuggestions.push({
-              activity,
-              friendId,
-              friendEmail: friendData?.nickname || friendData?.email || 'Unknown Friend',
-              suggestedTime: block.start,
-              context: {
-                score_breakdown: activity.score_breakdown,
-                total_score: activity.totalScore,
-                weather_conditions: { temp: 15, isRaining: false },
-                time_block: { start: block.start, end: block.end },
-                ai_reasoning: activity.ai_reasoning,
-                insider_tip: activity.insider_tip,
-              },
-            });
-          }
-        }
+        setMidpoint(midpointCoords);
       }
-
-      if (allSuggestions.length === 0) {
-        throw new Error('No activity suggestions available');
-      }
-
-      return allSuggestions;
-    },
-    enabled: false,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
+    } catch (error) {
+      console.error('Error calculating midpoint:', error);
+    }
+  };
 
   const generateSuggestions = async () => {
-    setIsGenerating(true);
-    try {
-      const result = await refetchSuggestions();
-      
-      if (result.error) {
-        if (result.error.message === 'No friends found') {
-          toast.error("You need friends to make plans! Add some friends first.");
-        } else if (result.error.message === 'No common free time found') {
-          toast.info("No common free time found with friends in the next week.");
-        } else if (result.error.message === 'No activity suggestions available') {
-          toast.info("No activity suggestions available right now.");
-        } else {
-          toast.error("Failed to generate suggestions");
-        }
-        return;
-      }
+    if (isGenerating || !selectedFriendId || !selectedTimeBlock) return;
 
-      if (result.data) {
-        setSuggestions(result.data);
-        setCurrentIndex(0);
-        toast.success(`Found ${result.data.length} activity suggestions!`);
+    setIsGenerating(true);
+    setLoading(true);
+    setSuggestions([]);
+    setCurrentIndex(0);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        'smart-activity-recommendations',
+        {
+          body: {
+            freeBlock: selectedTimeBlock,
+            friendId: selectedFriendId,
+            weather: { temp: 15, isRaining: false },
+          },
+        }
+      );
+
+      if (error) throw error;
+
+      const recommendations = data.recommendations || [];
+      
+      // Limit to 5 recommendations
+      const limitedRecommendations = recommendations.slice(0, 5);
+
+      const newSuggestions: ActivitySuggestion[] = limitedRecommendations.map((rec: any) => ({
+        activity: {
+          id: rec.id,
+          name: rec.name,
+          category: rec.category,
+          address: rec.address || 'Address not available',
+          price_level: rec.price_level || 2,
+          distance: rec.distance || 0,
+          match_score: rec.match_score,
+          totalScore: rec.total_score || rec.match_score,
+          score_breakdown: rec.score_breakdown,
+          ai_reasoning: rec.ai_reasoning,
+          insider_tip: rec.insider_tip,
+        },
+        friendId: selectedFriendId,
+        friendEmail: 'friend',
+        suggestedTime: selectedTimeBlock.start,
+        context: {
+          score_breakdown: rec.score_breakdown,
+          total_score: rec.total_score || rec.match_score,
+          weather_conditions: { temp: 15, isRaining: false },
+          time_block: selectedTimeBlock,
+          ai_reasoning: rec.ai_reasoning,
+          insider_tip: rec.insider_tip,
+        },
+      }));
+
+      setSuggestions(newSuggestions);
+
+      if (newSuggestions.length === 0) {
+        toast.info("No recommendations found", {
+          description: "Try selecting a different time slot.",
+        });
+      } else {
+        toast.success(`Found ${newSuggestions.length} great activities!`);
       }
     } catch (error) {
       console.error('Error generating suggestions:', error);
       toast.error("Failed to generate suggestions");
     } finally {
       setIsGenerating(false);
+      setLoading(false);
     }
   };
 
