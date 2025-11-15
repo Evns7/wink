@@ -141,9 +141,12 @@ const Dashboard = () => {
 
       if (error) throw error;
 
+      // Refetch today's events after sync
+      await fetchTodayEvents();
+
       toast({
         title: "Calendar Synced!",
-        description: "Your events have been updated.",
+        description: "Your events have been updated from Google Calendar.",
       });
     } catch (error) {
       console.error('Error syncing calendar:', error);

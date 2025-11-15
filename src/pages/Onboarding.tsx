@@ -18,15 +18,30 @@ const Onboarding = () => {
   const [preferences, setPreferences] = useState({
     homeAddress: "",
     nickname: "",
-    food: 5,
-    shopping: 5,
-    sports: 5,
-    studying: 5,
+    selectedHobbies: [] as string[],
     budgetMin: 0,
     budgetMax: 50,
     wakeTime: "07:00",
     sleepTime: "23:00",
   });
+
+  const hobbyOptions = [
+    { id: "shopping", label: "Shopping", icon: "🛍️" },
+    { id: "cafe", label: "Cafe Hopping", icon: "☕" },
+    { id: "sports", label: "Sports", icon: "⚽" },
+    { id: "studying", label: "Studying", icon: "📚" },
+    { id: "music", label: "Music", icon: "🎵" },
+    { id: "concerts", label: "Concerts", icon: "🎤" },
+    { id: "parties", label: "Parties", icon: "🎉" },
+    { id: "hiking", label: "Hiking", icon: "🥾" },
+    { id: "food", label: "Food & Dining", icon: "🍽️" },
+    { id: "movies", label: "Movies", icon: "🎬" },
+    { id: "arts", label: "Arts & Culture", icon: "🎨" },
+    { id: "gaming", label: "Gaming", icon: "🎮" },
+    { id: "fitness", label: "Fitness", icon: "💪" },
+    { id: "photography", label: "Photography", icon: "📸" },
+    { id: "cooking", label: "Cooking", icon: "👨‍🍳" },
+  ];
   const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
@@ -134,12 +149,12 @@ const Onboarding = () => {
 
       if (profileError) throw profileError;
 
-      const prefsToSave = [
-        { user_id: userId, category: 'food', score: preferences.food },
-        { user_id: userId, category: 'shopping', score: preferences.shopping },
-        { user_id: userId, category: 'sports', score: preferences.sports },
-        { user_id: userId, category: 'studying', score: preferences.studying },
-      ];
+      // Map selected hobbies to preferences with score 10, others to 0
+      const prefsToSave = hobbyOptions.map(hobby => ({
+        user_id: userId,
+        category: hobby.id,
+        score: preferences.selectedHobbies.includes(hobby.id) ? 10 : 0,
+      }));
 
       const { error: prefsError } = await supabase
         .from('preferences')
@@ -165,12 +180,17 @@ const Onboarding = () => {
     }
   };
 
-  const categories = [
-    { key: "food", label: "Food & Dining", icon: Utensils, color: "category-food" },
-    { key: "shopping", label: "Shopping", icon: ShoppingBag, color: "category-shopping" },
-    { key: "sports", label: "Sports & Outdoor", icon: Dumbbell, color: "category-sports" },
-    { key: "studying", label: "Studying", icon: BookOpen, color: "category-studying" },
-  ];
+  const toggleHobby = (hobbyId: string) => {
+    setPreferences(prev => {
+      const selected = prev.selectedHobbies;
+      if (selected.includes(hobbyId)) {
+        return { ...prev, selectedHobbies: selected.filter(id => id !== hobbyId) };
+      } else if (selected.length < 5) {
+        return { ...prev, selectedHobbies: [...selected, hobbyId] };
+      }
+      return prev;
+    });
+  };
 
   const handleBack = () => {
     if (step > 1) setStep(step - 1);
@@ -182,12 +202,12 @@ const Onboarding = () => {
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold">
             {step === 1 && "Welcome to Wink! 👋"}
-            {step === 2 && "What Do You Enjoy?"}
+            {step === 2 && "Pick Your Top 5 Activities"}
             {step === 3 && "Daily Schedule & Budget"}
           </CardTitle>
           <CardDescription className="text-base">
             {step === 1 && "Let's set up your profile so we can give you the best recommendations"}
-            {step === 2 && "Rate your interest in these categories (0-10)"}
+            {step === 2 && "Choose the activities you love most - select exactly 5!"}
             {step === 3 && "Help us understand your daily routine and spending"}
           </CardDescription>
         </CardHeader>
@@ -238,32 +258,39 @@ const Onboarding = () => {
             </div>
           )}
 
-          {/* Step 2: Preferences */}
+          {/* Step 2: Hobbies Selection */}
           {step === 2 && (
-            <div className="space-y-6">
-              {categories.map((category) => {
-                const Icon = category.icon;
-                return (
-                  <div key={category.key} className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl bg-${category.color}/10 flex items-center justify-center`}>
-                        <Icon className={`w-5 h-5 text-${category.color}`} />
-                      </div>
-                      <Label className="text-lg flex-1">{category.label}</Label>
-                      <span className="text-2xl font-bold text-primary w-12 text-right">
-                        {preferences[category.key as keyof typeof preferences]}
-                      </span>
-                    </div>
-                    <Slider
-                      value={[preferences[category.key as keyof typeof preferences] as number]}
-                      onValueChange={(value) => setPreferences({ ...preferences, [category.key]: value[0] })}
-                      max={10}
-                      step={1}
-                      className="w-full"
-                    />
-                  </div>
-                );
-              })}
+            <div className="space-y-4">
+              <p className="text-muted-foreground font-sans">
+                Select your top 5 favorite activities ({preferences.selectedHobbies.length}/5 selected)
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {hobbyOptions.map((hobby) => {
+                  const isSelected = preferences.selectedHobbies.includes(hobby.id);
+                  return (
+                    <button
+                      key={hobby.id}
+                      type="button"
+                      onClick={() => toggleHobby(hobby.id)}
+                      className={`
+                        p-4 rounded-xl border-2 transition-all text-left font-sans
+                        ${isSelected 
+                          ? 'border-primary bg-primary/10 shadow-panel scale-105' 
+                          : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                        }
+                      `}
+                    >
+                      <div className="text-3xl mb-2">{hobby.icon}</div>
+                      <div className="font-medium">{hobby.label}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              {preferences.selectedHobbies.length === 5 && (
+                <p className="text-sm text-primary text-center font-medium font-sans">
+                  Perfect! You've selected 5 activities. ✨
+                </p>
+              )}
             </div>
           )}
 
