@@ -223,8 +223,9 @@ const Calendar = () => {
                         <div className="text-sm font-semibold mb-1">{day}</div>
                         <div className="space-y-1">
                           {dayEvents.slice(0, 2).map((event) => (
-                            <div key={event.id} className="text-xs p-1 bg-accent/20 rounded truncate" title={event.title}>
-                              {event.title}
+                            <div key={event.id} className="text-xs p-1 bg-primary/20 text-foreground rounded" title={event.title}>
+                              <div className="font-semibold truncate">{event.title}</div>
+                              <div className="text-xs opacity-70">{format(parseISO(event.start_time), 'HH:mm')}</div>
                             </div>
                           ))}
                           {dayEvents.length > 2 && <div className="text-xs text-muted-foreground">+{dayEvents.length - 2} more</div>}
