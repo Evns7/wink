@@ -3,14 +3,6 @@ import { Home, User, LogOut, Calendar, Sparkles, Clock, Bell } from "lucide-reac
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbSeparator,
-  BreadcrumbPage,
-} from "./ui/breadcrumb";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -110,31 +102,6 @@ export const Header = () => {
     navigate("/");
   };
 
-  const getBreadcrumbs = () => {
-    const path = location.pathname;
-    const crumbs = [];
-
-    if (path === "/dashboard") {
-      crumbs.push({ label: "Dashboard", path: "/dashboard", active: true });
-    } else if (path === "/make-plans") {
-      crumbs.push({ label: "Dashboard", path: "/dashboard", active: false });
-      crumbs.push({ label: "Make Plans", path: "/make-plans", active: true });
-    } else if (path === "/calendar") {
-      crumbs.push({ label: "Dashboard", path: "/dashboard", active: false });
-      crumbs.push({ label: "Calendar", path: "/calendar", active: true });
-    } else if (path === "/profile") {
-      crumbs.push({ label: "Dashboard", path: "/dashboard", active: false });
-      crumbs.push({ label: "Profile", path: "/profile", active: true });
-    } else if (path === "/notifications") {
-      crumbs.push({ label: "Dashboard", path: "/dashboard", active: false });
-      crumbs.push({ label: "Notifications", path: "/notifications", active: true });
-    }
-
-    return crumbs;
-  };
-
-  const breadcrumbs = getBreadcrumbs();
-
   if (location.pathname === "/" || location.pathname === "/auth" || location.pathname === "/onboarding") {
     return null;
   }
@@ -161,35 +128,6 @@ export const Header = () => {
                 </span>
               </div>
             </div>
-          )}
-
-          {breadcrumbs.length > 0 && (
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link to="/dashboard" className="flex items-center gap-1">
-                      <Home className="h-4 w-4" />
-                      Home
-                    </Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                {breadcrumbs.map((crumb, index) => (
-                  <div key={crumb.path} className="flex items-center">
-                    {index > 0 && <BreadcrumbSeparator />}
-                    <BreadcrumbItem>
-                      {crumb.active ? (
-                        <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                      ) : (
-                        <BreadcrumbLink asChild>
-                          <Link to={crumb.path}>{crumb.label}</Link>
-                        </BreadcrumbLink>
-                      )}
-                    </BreadcrumbItem>
-                  </div>
-                ))}
-              </BreadcrumbList>
-            </Breadcrumb>
           )}
         </div>
 
