@@ -18,8 +18,6 @@ interface Activity {
   address: string;
   price_level: number;
   google_maps_link?: string;
-  lat: number;
-  lng: number;
 }
 
 interface WildcardRecommendationsProps {
@@ -244,14 +242,16 @@ export const WildcardRecommendations = ({ trigger }: WildcardRecommendationsProp
                         <Calendar className="h-4 w-4 mr-2" />
                         Schedule for {formatScheduledTime()}
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${activity.lat},${activity.lng}`, '_blank')}
-                        className="rounded-xl"
-                      >
-                        <Navigation className="h-4 w-4" />
-                      </Button>
+                      {activity.google_maps_link && (
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          onClick={() => window.open(activity.google_maps_link, '_blank')}
+                          className="rounded-xl"
+                        >
+                          <Navigation className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
