@@ -53,19 +53,37 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Use admin client to look up user by email
-    const { data: users, error: lookupError } = await supabaseAdmin.auth.admin.listUsers();
+    // Use admin client to look up user by email with pagination support
+    let targetUser = null;
+    let page = 1;
+    const perPage = 1000;
     
-    if (lookupError) {
-      console.error('Error looking up users:', lookupError);
-      throw lookupError;
-    }
+    while (!targetUser) {
+      const { data: users, error: lookupError } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage
+      });
+      
+      if (lookupError) {
+        console.error('Error looking up users:', lookupError);
+        throw lookupError;
+      }
 
-    const targetUser = users.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+      targetUser = users.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+      
+      // If we found the user or there are no more pages, break
+      if (targetUser || users.users.length < perPage) {
+        break;
+      }
+      
+      page++;
+    }
 
     if (!targetUser) {
       return new Response(
-        JSON.stringify({ error: 'User not found' }),
+        JSON.stringify({ 
+          error: 'No user found with this email. Make sure they have created an account first.' 
+        }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
