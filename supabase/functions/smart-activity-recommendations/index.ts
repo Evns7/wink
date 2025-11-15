@@ -138,8 +138,8 @@ serve(async (req) => {
       }
     }
 
-    console.log('Fetching nearby activities...');
-    const nearbyResponse = await fetch(`${supabaseUrl}/functions/v1/nearby-activities-enhanced`, {
+    console.log('Fetching nearby activities from Perplexity...');
+    const nearbyResponse = await fetch(`${supabaseUrl}/functions/v1/generate-activities-perplexity`, {
       method: 'POST',
       headers: {
         'Authorization': authHeader,
@@ -149,10 +149,17 @@ serve(async (req) => {
         lat: searchLat,
         lng: searchLng,
         radius: 5,
+        preferences: selectedHobbies,
+        budgetMin: profile.budget_min,
+        budgetMax: profile.budget_max,
+        timeOfDay: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        date: new Date().toISOString().split('T')[0],
       }),
     });
 
     if (!nearbyResponse.ok) {
+      const errorText = await nearbyResponse.text();
+      console.error('Perplexity API error:', nearbyResponse.status, errorText);
       throw new Error(`Failed to fetch nearby activities: ${nearbyResponse.statusText}`);
     }
 
@@ -171,58 +178,33 @@ serve(async (req) => {
       );
     }
 
-    // Score activities
+    // Perplexity already calculates match scores, so we just need to apply minor adjustments
     const scoredActivities = nearbyActivities.map((activity: any) => {
-      let preferenceScore = 0;
+      // Start with Perplexity's match percentage
+      let totalScore = activity.match_percentage || 50;
+      
+      // Apply small adjustments based on user context
       const categoryLower = activity.category?.toLowerCase() || '';
-
+      
+      // Boost if matches user's top preferences
       if (selectedHobbies.some((h: string) => categoryLower.includes(h.toLowerCase()))) {
-        preferenceScore = 10;
-      } else if (likedCategories.includes(categoryLower)) {
-        preferenceScore = 7;
-      } else {
-        preferenceScore = 3;
+        totalScore = Math.min(100, totalScore + 10);
       }
-
-      const timeFitScore = freeBlock ? 8 : 5;
-
-      const weatherScore = weather?.isRaining
-        ? ['museum', 'cinema', 'theatre', 'shopping'].some(indoor =>
-            categoryLower.includes(indoor)
-          )
-          ? 10
-          : 3
-        : 8;
-
-      const budgetScore = activity.price_level
-        ? Math.max(0, 10 - Math.abs((profile.budget_max || 50) - activity.price_level * 10))
-        : 7;
-
-      const proximityScore = activity.distance
-        ? Math.max(0, 10 - (activity.distance / 2))
-        : 5;
-
-      const durationScore = 8;
-
-      const totalScore =
-        (preferenceScore * 0.3) +
-        (timeFitScore * 0.15) +
-        (weatherScore * 0.1) +
-        (budgetScore * 0.15) +
-        (proximityScore * 0.2) +
-        (durationScore * 0.1);
+      
+      // Boost if matches liked categories from history
+      if (likedCategories.includes(categoryLower)) {
+        totalScore = Math.min(100, totalScore + 5);
+      }
 
       return {
         ...activity,
-        match_score: Math.round(totalScore * 10),
-        total_score: Math.round(totalScore * 10),
+        match_score: Math.round(totalScore),
+        total_score: Math.round(totalScore),
+        distance: activity.distance_km, // Normalize field name
         score_breakdown: {
-          preference: preferenceScore,
-          time_fit: timeFitScore,
-          weather: weatherScore,
-          budget: budgetScore,
-          proximity: proximityScore,
-          duration: durationScore,
+          base_match: activity.match_percentage,
+          preference_boost: selectedHobbies.some((h: string) => categoryLower.includes(h.toLowerCase())) ? 10 : 0,
+          history_boost: likedCategories.includes(categoryLower) ? 5 : 0,
         },
       };
     });
