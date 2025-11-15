@@ -68,6 +68,47 @@ export type Database = {
         }
         Relationships: []
       }
+      activity_invitations: {
+        Row: {
+          activity_id: string | null
+          created_at: string
+          id: string
+          invitee_id: string
+          inviter_id: string
+          message: string | null
+          status: string
+          suggested_time: string | null
+        }
+        Insert: {
+          activity_id?: string | null
+          created_at?: string
+          id?: string
+          invitee_id: string
+          inviter_id: string
+          message?: string | null
+          status?: string
+          suggested_time?: string | null
+        }
+        Update: {
+          activity_id?: string | null
+          created_at?: string
+          id?: string
+          invitee_id?: string
+          inviter_id?: string
+          message?: string | null
+          status?: string
+          suggested_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_invitations_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_connections: {
         Row: {
           access_token: string | null
@@ -149,6 +190,33 @@ export type Database = {
         }
         Relationships: []
       }
+      friendships: {
+        Row: {
+          created_at: string
+          friend_id: string
+          id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          friend_id: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          friend_id?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       preferences: {
         Row: {
           category: string
@@ -211,6 +279,54 @@ export type Database = {
           wake_time?: string | null
         }
         Relationships: []
+      }
+      scheduled_activities: {
+        Row: {
+          activity_id: string | null
+          calendar_event_id: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          rating: number | null
+          user_id: string
+        }
+        Insert: {
+          activity_id?: string | null
+          calendar_event_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          rating?: number | null
+          user_id: string
+        }
+        Update: {
+          activity_id?: string | null
+          calendar_event_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          rating?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_activities_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_activities_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       spatial_ref_sys: {
         Row: {
@@ -542,6 +658,19 @@ export type Database = {
       geomfromewkt: { Args: { "": string }; Returns: unknown }
       gettransactionid: { Args: never; Returns: unknown }
       longtransactionsenabled: { Args: never; Returns: boolean }
+      nearby_activities: {
+        Args: { radius_km: number; user_lat: number; user_lng: number }
+        Returns: {
+          address: string
+          category: string
+          distance: number
+          id: string
+          lat: number
+          lng: number
+          name: string
+          price_level: number
+        }[]
+      }
       populate_geometry_columns:
         | { Args: { use_typmod?: boolean }; Returns: string }
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
