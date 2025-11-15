@@ -113,6 +113,7 @@ Focus on EXPERIENCES over places. Make every suggestion exciting.`;
     const userPrompt = `Curate 10 EXCEPTIONAL and UNIQUE experiences in London near ${lat}, ${lng} (within ${radius}km).
 
 🎯 Context:
+- **User Location**: ${lat}, ${lng} (THIS IS CRITICAL - all distances and travel times must be calculated from HERE)
 - Date: ${currentDate} | Time: ${currentTime}
 - Budget: £0-£${budget}
 - Seeking: ${userPreferences.length > 0 ? userPreferences.join(', ') : 'exciting, memorable experiences'}
@@ -137,9 +138,11 @@ Each activity MUST have:
 6. **What makes it special**: The unique selling point
 7. **Vibe**: The atmosphere (e.g., "Instagram heaven", "Date night magic", "Friend group energy")
 8. **Time details**: When it's open/happening
-9. **Price**: Honest pricing
-10. **Match score**: Realistic 0-100% based on uniqueness + user preferences + time + budget
-11. **High-quality thumbnail image**
+9. **💰 PRICE (CRITICAL)**: Exact price in £ - be specific (e.g., £15 entry, £35 dinner, £0 for free events)
+10. **📍 DISTANCE (CRITICAL)**: Precise distance in km from coordinates ${lat}, ${lng} - calculate accurately
+11. **⏱️ TRAVEL TIME (CRITICAL)**: Realistic travel time in minutes by public transport from ${lat}, ${lng} - be accurate
+12. **Match score**: Realistic 0-100% based on uniqueness + user preferences + time + budget
+13. **High-quality thumbnail image**
 
 ❌ ABSOLUTELY DO NOT INCLUDE:
 - Generic chain restaurants or cafes
@@ -148,6 +151,8 @@ Each activity MUST have:
 - Tourist clichés without a unique angle
 - Anything boring, corporate, or routine
 - Hotels or accommodation
+- Activities with vague or unknown pricing
+- Activities without accurate location data
 
 ✅ MAKE IT EXCITING:
 - Use enthusiastic, inspiring language
@@ -155,8 +160,16 @@ Each activity MUST have:
 - Highlight what makes it Instagram-worthy or memorable
 - Be specific about WHY it's cool
 - Real London insider knowledge
+- **ACCURATE pricing in £** - users need to budget
+- **PRECISE distances and travel times** - users need to plan their journey
 
 Current real-time context: ${currentDate} at ${currentTime} - suggest things actually happening NOW or soon.
+
+⚠️ CRITICAL REQUIREMENTS:
+- Price MUST be in £ (British Pounds), not generic price levels
+- Distance MUST be calculated from coordinates ${lat}, ${lng}
+- Travel time MUST be realistic by London public transport (Tube, bus, etc.)
+- All three fields (price, distance, travel_time) are MANDATORY for each activity
 
 Remember: We want activities that make people say "Oh wow, I didn't know that existed!" not "Yeah, that's just a normal [place]".`;
 

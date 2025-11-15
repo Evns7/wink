@@ -41,3 +41,6 @@ verify_jwt = true
 
 [functions.nearby-activities-enhanced]
 verify_jwt = true
+
+[functions.generate-activities-perplexity]
+verify_jwt = true
