@@ -30,6 +30,15 @@ const Calendar = () => {
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null);
 
+  const handleMakePlansWithBlocks = (blocks: any[]) => {
+    // Navigate to make plans page - the page will handle loading recommendations
+    toast({
+      title: "Navigating to Make Plans",
+      description: `Found ${blocks.length} time blocks where you're both free`,
+    });
+    navigate('/make-plans');
+  };
+
   useEffect(() => {
     checkAuthAndFetchEvents();
   }, []);
@@ -187,7 +196,10 @@ const Calendar = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 <FriendSelector selectedFriendId={selectedFriendId} onSelectFriend={setSelectedFriendId} />
-                <CalendarComparison selectedFriendId={selectedFriendId} />
+                <CalendarComparison 
+                  selectedFriendId={selectedFriendId} 
+                  onMakePlansWithBlocks={handleMakePlansWithBlocks}
+                />
               </CardContent>
             </Card>
           </TabsContent>

@@ -22,6 +22,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [calendarConnected, setCalendarConnected] = useState(false);
+  const [todayEvents, setTodayEvents] = useState<any[]>([]);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -62,7 +63,33 @@ const Dashboard = () => {
     setCalendarConnected(!!calendarData);
 
     await fetchActivities(profileData.home_lat, profileData.home_lng);
+    await fetchTodayEvents();
     setLoading(false);
+  };
+
+  const fetchTodayEvents = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('start_time', today.toISOString())
+        .lt('start_time', tomorrow.toISOString())
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+      setTodayEvents(data || []);
+    } catch (error) {
+      console.error('Error fetching today events:', error);
+    }
   };
 
   const fetchActivities = async (lat: number, lng: number) => {
@@ -196,62 +223,57 @@ const Dashboard = () => {
             </Link>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {/* Mock calendar events */}
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30">
-                <div className="text-center">
-                  <div className="text-sm text-muted-foreground">9:00 AM</div>
-                  <div className="text-sm font-medium">10:30 AM</div>
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold">Team Meeting</div>
-                  <div className="text-sm text-muted-foreground">Conference Room A</div>
-                </div>
-                <div className="w-2 h-full bg-primary rounded-full"></div>
+            {todayEvents.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                {calendarConnected ? "No events scheduled for today" : "Connect your calendar to see today's schedule"}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {todayEvents.map((event) => (
+                  <div key={event.id} className="flex items-center gap-4 p-4 rounded-xl bg-muted/30">
+                    <div className="text-center min-w-[80px]">
+                      <div className="text-sm text-muted-foreground">
+                        {new Date(event.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                      </div>
+                      <div className="text-sm font-medium">
+                        {new Date(event.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold">{event.title}</div>
+                      {event.location && (
+                        <div className="text-sm text-muted-foreground">{event.location}</div>
+                      )}
+                    </div>
+                    <div className="w-2 h-12 bg-primary rounded-full"></div>
+                  </div>
+                ))}
               </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-accent/10 border-2 border-accent/30">
-                <div className="text-center">
-                  <div className="text-sm text-muted-foreground">10:30 AM</div>
-                  <div className="text-sm font-medium">2:00 PM</div>
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-accent">⏰ Free Time - 3.5 hours</div>
-                  <div className="text-sm text-muted-foreground">Perfect for activities!</div>
-                </div>
-                <Sparkles className="w-6 h-6 text-accent" />
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30">
-                <div className="text-center">
-                  <div className="text-sm text-muted-foreground">2:00 PM</div>
-                  <div className="text-sm font-medium">4:00 PM</div>
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold">Client Presentation</div>
-                  <div className="text-sm text-muted-foreground">Zoom Call</div>
-                </div>
-                <div className="w-2 h-full bg-category-shopping rounded-full"></div>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Recommended Activities */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-3xl font-bold">Perfect for Your 3.5 Hour Window</h2>
-            <Button className="rounded-xl">
-              <Sparkles className="w-4 h-4 mr-2" />
-              AI Wildcard Ideas
-            </Button>
-          </div>
+          {activities.length > 0 && (
+            <>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-3xl font-bold">Nearby Activities</h2>
+                <Link to="/make-plans">
+                  <Button className="rounded-xl">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Make Plans with Friends
+                  </Button>
+                </Link>
+              </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {activities.map((activity) => (
-              <ActivityCard key={activity.id} activity={activity} />
-            ))}
-          </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activities.slice(0, 6).map((activity) => (
+                  <ActivityCard key={activity.id} activity={activity} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Quick Actions */}

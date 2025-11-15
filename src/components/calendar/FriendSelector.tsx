@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 interface Friend {
   id: string;
   email: string;
+  nickname: string;
 }
 
 interface FriendSelectorProps {
@@ -57,12 +58,19 @@ export const FriendSelector = ({ selectedFriendId, onSelectFriend }: FriendSelec
         f.user_id === user.id ? f.friend_id : f.user_id
       );
 
-      // Fetch friend details from profiles or use IDs
-      const friendsData = friendIds.map(id => ({
-        id,
-        email: `Friend ${id.substring(0, 8)}`, // Placeholder
-      }));
+      // Fetch friend emails and nicknames
+      const friendsDataPromises = friendIds.map(async (id) => {
+        const { data } = await supabase.functions.invoke('get-user-email', {
+          body: { userId: id }
+        });
+        return {
+          id,
+          email: data?.email || `Friend ${id.substring(0, 8)}`,
+          nickname: data?.nickname || data?.email?.split('@')[0] || 'Friend',
+        };
+      });
 
+      const friendsData = await Promise.all(friendsDataPromises);
       setFriends(friendsData);
     } catch (error) {
       console.error('Error fetching friends:', error);
@@ -91,7 +99,7 @@ export const FriendSelector = ({ selectedFriendId, onSelectFriend }: FriendSelec
             <Users className="h-4 w-4" />
             {selectedFriend ? (
               <>
-                <span className="truncate">{selectedFriend.email}</span>
+                <span className="truncate">{selectedFriend.nickname}</span>
                 <Badge variant="secondary" className="ml-2">Comparing</Badge>
               </>
             ) : (
@@ -131,10 +139,13 @@ export const FriendSelector = ({ selectedFriendId, onSelectFriend }: FriendSelec
                 />
                 <Avatar className="h-6 w-6 mr-2">
                   <AvatarFallback className="text-xs">
-                    {friend.email.substring(0, 2).toUpperCase()}
+                    {friend.nickname.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <span className="truncate">{friend.email}</span>
+                <div className="flex flex-col">
+                  <span className="truncate font-medium">{friend.nickname}</span>
+                  <span className="text-xs text-muted-foreground truncate">{friend.email}</span>
+                </div>
               </CommandItem>
             ))}
           </CommandGroup>

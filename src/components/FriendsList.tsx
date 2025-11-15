@@ -268,9 +268,6 @@ export const FriendsList = () => {
                     <p className="text-sm font-medium">{friendship.friendNickname || 'Friend'}</p>
                     <p className="text-xs text-muted-foreground">{friendship.friendEmail}</p>
                   </div>
-                  <Button size="sm" variant="outline" className="rounded-full">
-                    View Calendar
-                  </Button>
                 </motion.div>
               ))}
             </div>
