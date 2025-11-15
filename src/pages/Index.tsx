@@ -48,7 +48,7 @@ const Index = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
-            <Link to="/onboarding">
+            <Link to="/auth">
               <Button size="lg" className="text-lg px-8 py-6 rounded-2xl shadow-lg hover:shadow-xl transition-smooth">
                 Get Started <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
@@ -131,7 +131,7 @@ const Index = () => {
           <p className="text-xl text-muted-foreground">
             Join thousands discovering meaningful activities every day
           </p>
-          <Link to="/onboarding">
+          <Link to="/auth">
             <Button size="lg" className="text-lg px-8 py-6 rounded-2xl shadow-lg">
               Start Your Journey <ArrowRight className="ml-2 w-5 h-5" />
             </Button>

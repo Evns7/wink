@@ -1,13 +1,22 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Cloud, Sun, CloudRain, Wind, MapPin, Calendar, Sparkles } from "lucide-react";
+import { Calendar, Sparkles, MapPin, LogOut } from "lucide-react";
 import ActivityCard from "@/components/ActivityCard";
 import WeatherWidget from "@/components/WeatherWidget";
 import { Link } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [timeOfDay, setTimeOfDay] = useState<'sunrise' | 'afternoon' | 'sunset' | 'night'>('afternoon');
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+  const [calendarConnected, setCalendarConnected] = useState(false);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -15,7 +24,105 @@ const Dashboard = () => {
     else if (hour >= 10 && hour < 17) setTimeOfDay('afternoon');
     else if (hour >= 17 && hour < 20) setTimeOfDay('sunset');
     else setTimeOfDay('night');
+
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      navigate('/auth');
+      return;
+    }
+
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (!profileData || !profileData.home_lat || !profileData.home_lng) {
+      navigate('/onboarding');
+      return;
+    }
+
+    setProfile(profileData);
+
+    const { data: calendarData } = await supabase
+      .from('calendar_connections')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    setCalendarConnected(!!calendarData);
+
+    await fetchActivities(profileData.home_lat, profileData.home_lng);
+    setLoading(false);
+  };
+
+  const fetchActivities = async (lat: number, lng: number) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-nearby-activities', {
+        body: { lat, lng, radius: 2000 }
+      });
+
+      if (error) throw error;
+
+      setActivities(data.activities || []);
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+      toast({
+        variant: "destructive",
+        title: "Could not load activities",
+        description: "Please try again later.",
+      });
+    }
+  };
+
+  const handleConnectCalendar = async () => {
+    try {
+      const redirectUri = `${window.location.origin}/auth`;
+      const { data, error } = await supabase.functions.invoke('google-calendar-oauth', {
+        body: { action: 'get_auth_url', redirectUri }
+      });
+
+      if (error) throw error;
+
+      window.location.href = data.authUrl;
+    } catch (error) {
+      console.error('Error connecting calendar:', error);
+      toast({
+        variant: "destructive",
+        title: "Connection Failed",
+        description: "Could not connect to Google Calendar.",
+      });
+    }
+  };
+
+  const handleSyncCalendar = async () => {
+    try {
+      const { error } = await supabase.functions.invoke('sync-calendar-events');
+
+      if (error) throw error;
+
+      toast({
+        title: "Calendar Synced!",
+        description: "Your events have been updated.",
+      });
+    } catch (error) {
+      console.error('Error syncing calendar:', error);
+      toast({
+        variant: "destructive",
+        title: "Sync Failed",
+        description: "Could not sync calendar events.",
+      });
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
+  };
 
   const gradientClass = {
     sunrise: 'bg-gradient-sunrise',
@@ -24,42 +131,6 @@ const Dashboard = () => {
     night: 'bg-gradient-night',
   }[timeOfDay];
 
-  // Mock data for activities
-  const activities = [
-    {
-      id: 1,
-      title: "Coffee at The Daily Grind",
-      category: "food",
-      duration: 45,
-      travelTime: 12,
-      price: 15,
-      weatherMatch: 0.9,
-      description: "Cozy café with excellent espresso and pastries",
-      image: "☕",
-    },
-    {
-      id: 2,
-      title: "Yoga Class at Zen Studio",
-      category: "sports",
-      duration: 60,
-      travelTime: 20,
-      price: 25,
-      weatherMatch: 1.0,
-      description: "Indoor yoga session perfect for any weather",
-      image: "🧘",
-    },
-    {
-      id: 3,
-      title: "Browse Books at Chapter One",
-      category: "studying",
-      duration: 90,
-      travelTime: 15,
-      price: 0,
-      weatherMatch: 1.0,
-      description: "Large independent bookstore with café",
-      image: "📚",
-    },
-  ];
 
   const greeting = () => {
     const hour = new Date().getHours();
