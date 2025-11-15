@@ -1,9 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://esm.sh/zod@3.22.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const weatherSchema = z.object({
+  type: z.enum(['current', 'forecast']),
+  city: z.string().max(100).optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+  days: z.number().int().min(1).max(14).optional(),
+}).refine(data => data.city || (data.lat !== undefined && data.lng !== undefined), {
+  message: 'Either city or coordinates (lat/lng) required',
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,7 +27,17 @@ serve(async (req) => {
       throw new Error('WEATHER_API_KEY not configured');
     }
 
-    const { type, city, lat, lng, days } = await req.json();
+    const rawData = await req.json();
+    const validationResult = weatherSchema.safeParse(rawData);
+    
+    if (!validationResult.success) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input', details: validationResult.error.errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { type, city, lat, lng, days } = validationResult.data;
     console.log('Weather request:', { type, city, lat, lng, days });
 
     let url: string;

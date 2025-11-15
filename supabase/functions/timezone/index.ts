@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://esm.sh/zod@3.22.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +19,11 @@ interface TimezoneResponse {
   unixtime: number;
 }
 
+const timezoneSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+});
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -25,13 +31,17 @@ serve(async (req) => {
   }
 
   try {
-    const { lat, lng }: TimezoneRequest = await req.json();
-
-    console.log(`Fetching timezone for coordinates: ${lat}, ${lng}`);
-
-    if (!lat || !lng) {
-      throw new Error('Latitude and longitude are required');
+    const rawData = await req.json();
+    const validationResult = timezoneSchema.safeParse(rawData);
+    
+    if (!validationResult.success) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input', details: validationResult.error.errors }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    const { lat, lng } = validationResult.data;
 
     // Use WorldTimeAPI to get timezone from coordinates
     // This is a free API that doesn't require authentication
