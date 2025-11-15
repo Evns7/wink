@@ -1,15 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { ShoppingBag, Utensils, Dumbbell, BookOpen, ArrowRight, ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 const Onboarding = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [preferences, setPreferences] = useState({
     homeAddress: "",
     food: 5,
@@ -22,17 +27,105 @@ const Onboarding = () => {
     sleepTime: "23:00",
   });
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) navigate('/auth');
+      else setUserId(session.user.id);
+    });
+  }, [navigate]);
+
+  const geocodeAddress = async (address: string) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`
+      );
+      const data = await response.json();
+      if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    } catch (error) {
+      console.error('Geocoding error:', error);
+    }
+    return null;
+  };
+
+  const handleNext = async () => {
+    if (step < 3) {
+      setStep(step + 1);
+    } else {
+      await handleSubmit();
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!userId) return;
+    setLoading(true);
+
+    try {
+      let coords = null;
+      if (preferences.homeAddress) {
+        coords = await geocodeAddress(preferences.homeAddress);
+        if (!coords) {
+          toast({
+            variant: "destructive",
+            title: "Address not found",
+            description: "Please try a different address.",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          home_address: preferences.homeAddress,
+          home_lat: coords?.lat,
+          home_lng: coords?.lng,
+          budget_min: preferences.budgetMin,
+          budget_max: preferences.budgetMax,
+          wake_time: preferences.wakeTime,
+          sleep_time: preferences.sleepTime,
+        });
+
+      if (profileError) throw profileError;
+
+      const prefsToSave = [
+        { user_id: userId, category: 'food', score: preferences.food },
+        { user_id: userId, category: 'shopping', score: preferences.shopping },
+        { user_id: userId, category: 'sports', score: preferences.sports },
+        { user_id: userId, category: 'studying', score: preferences.studying },
+      ];
+
+      const { error: prefsError } = await supabase
+        .from('preferences')
+        .upsert(prefsToSave, { onConflict: 'user_id,category' });
+
+      if (prefsError) throw prefsError;
+
+      toast({
+        title: "Profile Created!",
+        description: "Your preferences have been saved.",
+      });
+
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Onboarding error:', error);
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: "Could not save your preferences.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const categories = [
     { key: "food", label: "Food & Dining", icon: Utensils, color: "category-food" },
     { key: "shopping", label: "Shopping", icon: ShoppingBag, color: "category-shopping" },
     { key: "sports", label: "Sports & Outdoor", icon: Dumbbell, color: "category-sports" },
     { key: "studying", label: "Studying", icon: BookOpen, color: "category-studying" },
   ];
-
-  const handleNext = () => {
-    if (step < 3) setStep(step + 1);
-    else navigate("/dashboard");
-  };
 
   const handleBack = () => {
     if (step > 1) setStep(step - 1);
@@ -163,8 +256,9 @@ const Onboarding = () => {
             <Button
               onClick={handleNext}
               className="flex-1 h-12 rounded-xl text-base"
+              disabled={loading}
             >
-              {step < 3 ? (
+              {loading ? "Saving..." : step < 3 ? (
                 <>Next <ArrowRight className="ml-2 w-4 h-4" /></>
               ) : (
                 "Get Started!"
