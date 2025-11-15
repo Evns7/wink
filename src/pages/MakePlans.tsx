@@ -2,15 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SwipeableActivityCard } from "@/components/SwipeableActivityCard";
-import { FriendSelector } from "@/components/calendar/FriendSelector";
-import { TimeBlockSelector } from "@/components/calendar/TimeBlockSelector";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, Sparkles, MapPin, Users, Calendar } from "lucide-react";
+import { Loader2, Sparkles, Calendar as CalendarIcon, X } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/Header";
-import { calculateMidpoint } from "@/services/locationService";
-import { generateMapsPinUrl } from "@/lib/mapsUtils";
 
 interface Activity {
   id: string;
@@ -19,6 +15,8 @@ interface Activity {
   address: string;
   price_level: number;
   distance: number;
+  lat: number;
+  lng: number;
   match_score?: number;
   totalScore?: number;
   score_breakdown?: {
@@ -35,37 +33,17 @@ interface Activity {
 
 interface ActivitySuggestion {
   activity: Activity;
-  friendId: string;
-  friendEmail: string;
   suggestedTime: string;
-  context?: {
-    score_breakdown?: any;
-    total_score?: number;
-    weather_conditions?: any;
-    time_block?: any;
-    ai_reasoning?: string | null;
-    insider_tip?: string | null;
-  };
-}
-
-interface TimeBlock {
-  start: string;
-  end: string;
-  duration: number;
+  context?: any;
 }
 
 export default function MakePlans() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<ActivitySuggestion[]>([]);
+  const [acceptedActivities, setAcceptedActivities] = useState<ActivitySuggestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [selectedFriendId, setSelectedFriendId] = useState<string>("");
-  const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
-  const [selectedTimeBlock, setSelectedTimeBlock] = useState<TimeBlock | null>(null);
-  const [loadingTimeBlocks, setLoadingTimeBlocks] = useState(false);
-  const [midpoint, setMidpoint] = useState<{ lat: number; lng: number } | null>(null);
-  const [friendName, setFriendName] = useState<string>("");
 
   useEffect(() => {
     checkAuth();
@@ -78,119 +56,53 @@ export default function MakePlans() {
     }
   };
 
-  // Fetch time blocks when friend is selected
-  useEffect(() => {
-    if (selectedFriendId) {
-      fetchTimeBlocks();
-      fetchFriendDetails();
-    } else {
-      setTimeBlocks([]);
-      setSelectedTimeBlock(null);
-      setMidpoint(null);
-      setFriendName("");
-    }
-  }, [selectedFriendId]);
+  const generateSuggestions = async () => {
+    if (isGenerating) return;
 
-  // Calculate midpoint when both user and friend locations are available
-  useEffect(() => {
-    if (selectedFriendId && selectedTimeBlock) {
-      calculateMidpointLocation();
-    }
-  }, [selectedFriendId, selectedTimeBlock]);
+    setIsGenerating(true);
+    setLoading(true);
+    setSuggestions([]);
+    setAcceptedActivities([]);
+    setCurrentIndex(0);
 
-  const fetchFriendDetails = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('nickname')
-        .eq('id', selectedFriendId)
-        .single();
-      
-      if (error) throw error;
-      setFriendName(data?.nickname || 'Friend');
-    } catch (error) {
-      console.error('Error fetching friend details:', error);
-    }
-  };
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
-  const fetchTimeBlocks = async () => {
-    if (!selectedFriendId) return;
-    
-    setLoadingTimeBlocks(true);
-    try {
       const startDate = new Date();
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + 7);
 
-      const { data, error } = await supabase.functions.invoke(
+      // Analyze user's availability
+      const { data: availabilityData, error: availabilityError } = await supabase.functions.invoke(
         'analyze-group-availability',
         {
           body: {
-            friendIds: [selectedFriendId],
+            friendIds: [],
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
           },
         }
       );
 
-      if (error) throw error;
+      if (availabilityError) throw availabilityError;
 
-      const freeBlocks = data.freeBlocks || [];
-      setTimeBlocks(freeBlocks);
-
+      const freeBlocks = availabilityData.freeBlocks || [];
       if (freeBlocks.length === 0) {
-        toast.info("No overlapping free time found", {
-          description: "Try selecting a different friend or check your calendar.",
+        toast.info("No free time found", {
+          description: "Your schedule is fully booked!",
         });
+        return;
       }
-    } catch (error) {
-      console.error('Error fetching time blocks:', error);
-      toast.error("Failed to fetch available times");
-    } finally {
-      setLoadingTimeBlocks(false);
-    }
-  };
 
-  const calculateMidpointLocation = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const [userProfile, friendProfile] = await Promise.all([
-        supabase.from('profiles').select('home_lat, home_lng').eq('id', user.id).single(),
-        supabase.from('profiles').select('home_lat, home_lng').eq('id', selectedFriendId).single(),
-      ]);
-
-      if (userProfile.data?.home_lat && userProfile.data?.home_lng &&
-          friendProfile.data?.home_lat && friendProfile.data?.home_lng) {
-        const midpointCoords = calculateMidpoint(
-          userProfile.data.home_lat,
-          userProfile.data.home_lng,
-          friendProfile.data.home_lat,
-          friendProfile.data.home_lng
-        );
-        setMidpoint(midpointCoords);
-      }
-    } catch (error) {
-      console.error('Error calculating midpoint:', error);
-    }
-  };
-
-  const generateSuggestions = async () => {
-    if (isGenerating || !selectedFriendId || !selectedTimeBlock) return;
-
-    setIsGenerating(true);
-    setLoading(true);
-    setSuggestions([]);
-    setCurrentIndex(0);
-
-    try {
+      // Get recommendations for the first available time block
+      const block = freeBlocks[0];
+      
       const { data, error } = await supabase.functions.invoke(
         'smart-activity-recommendations',
         {
           body: {
-            freeBlock: selectedTimeBlock,
-            friendId: selectedFriendId,
+            freeBlock: block,
             weather: { temp: 15, isRaining: false },
           },
         }
@@ -199,8 +111,6 @@ export default function MakePlans() {
       if (error) throw error;
 
       const recommendations = data.recommendations || [];
-      
-      // Limit to 5 recommendations
       const limitedRecommendations = recommendations.slice(0, 5);
 
       const newSuggestions: ActivitySuggestion[] = limitedRecommendations.map((rec: any) => ({
@@ -209,35 +119,30 @@ export default function MakePlans() {
           name: rec.name,
           category: rec.category,
           address: rec.address || 'Address not available',
-          price_level: rec.price_level || 2,
+          price_level: rec.price_level,
           distance: rec.distance || 0,
+          lat: rec.lat,
+          lng: rec.lng,
           match_score: rec.match_score,
           totalScore: rec.total_score || rec.match_score,
           score_breakdown: rec.score_breakdown,
           ai_reasoning: rec.ai_reasoning,
           insider_tip: rec.insider_tip,
         },
-        friendId: selectedFriendId,
-        friendEmail: 'friend',
-        suggestedTime: selectedTimeBlock.start,
+        suggestedTime: block.start,
         context: {
           score_breakdown: rec.score_breakdown,
           total_score: rec.total_score || rec.match_score,
-          weather_conditions: { temp: 15, isRaining: false },
-          time_block: selectedTimeBlock,
-          ai_reasoning: rec.ai_reasoning,
-          insider_tip: rec.insider_tip,
+          time_block: block,
         },
       }));
 
       setSuggestions(newSuggestions);
 
       if (newSuggestions.length === 0) {
-        toast.info("No recommendations found", {
-          description: "Try selecting a different time slot.",
-        });
+        toast.info("No recommendations found");
       } else {
-        toast.success(`Found ${newSuggestions.length} great activities!`);
+        toast.success(`Found ${newSuggestions.length} activities!`);
       }
     } catch (error) {
       console.error('Error generating suggestions:', error);
@@ -252,36 +157,49 @@ export default function MakePlans() {
     if (currentIndex >= suggestions.length) return;
 
     const suggestion = suggestions[currentIndex];
-    setLoading(true);
 
-    try {
-      const response = direction === "right" ? "accept" : "reject";
-      
-      const { data, error } = await supabase.functions.invoke('handle-activity-swipe', {
-        body: {
-          friendId: suggestion.friendId,
-          activityId: suggestion.activity.id,
-          response,
-          suggestedTime: suggestion.suggestedTime,
-          context: suggestion.context,
-        },
+    if (direction === "right") {
+      setAcceptedActivities(prev => [...prev, suggestion]);
+      toast.success("Activity saved!", {
+        description: acceptedActivities.length + 1 >= 3 
+          ? "You can now add them to your calendar!" 
+          : `${suggestion.activity.name} added`,
       });
+    }
 
-      if (error) throw error;
+    setCurrentIndex(prev => prev + 1);
+  };
 
-      if (data.isMatch) {
-        toast.success("🎉 It's a match! Calendar event created!", {
-          description: `You and your friend will do ${suggestion.activity.name}`,
+  const addToCalendar = async () => {
+    if (acceptedActivities.length === 0) return;
+
+    setLoading(true);
+    try {
+      for (const activity of acceptedActivities) {
+        const { error } = await supabase.functions.invoke('create-calendar-event', {
+          body: {
+            activityName: activity.activity.name,
+            activityAddress: activity.activity.address,
+            startTime: activity.suggestedTime,
+            duration: 120,
+          },
         });
-      } else if (response === "accept") {
-        toast.info("👍 Waiting for your friend to swipe...");
+
+        if (error) {
+          console.error('Error adding to calendar:', error);
+        }
       }
 
-      // Move to next card
-      setCurrentIndex(prev => prev + 1);
+      toast.success("Added to calendar!", {
+        description: `${acceptedActivities.length} activities scheduled`,
+      });
+
+      setAcceptedActivities([]);
+      setSuggestions([]);
+      setCurrentIndex(0);
     } catch (error) {
-      console.error('Error handling swipe:', error);
-      toast.error("Failed to record your response");
+      console.error('Error adding to calendar:', error);
+      toast.error("Failed to add to calendar");
     } finally {
       setLoading(false);
     }
@@ -290,22 +208,43 @@ export default function MakePlans() {
   const currentSuggestion = suggestions[currentIndex];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <Header />
-      
-      <div className="container max-w-2xl mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Make Plans</h1>
-          <p className="text-muted-foreground">Swipe right to accept, left to pass</p>
+          <h1 className="text-4xl font-bold text-foreground mb-4">Discover Activities</h1>
+          <p className="text-muted-foreground">Swipe right to save, left to pass</p>
         </div>
+
+        {/* Accepted activities banner */}
+        {acceptedActivities.length > 0 && (
+          <Card className="p-4 mb-6 bg-primary/5 border-primary/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <span className="font-medium">{acceptedActivities.length} saved</span>
+              </div>
+              {acceptedActivities.length >= 3 && (
+                <Button
+                  onClick={addToCalendar}
+                  disabled={loading}
+                  size="sm"
+                >
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  Add to Calendar
+                </Button>
+              )}
+            </div>
+          </Card>
+        )}
 
         {suggestions.length === 0 ? (
           <Card className="p-12 text-center space-y-6">
             <Sparkles className="w-16 h-16 mx-auto text-primary" />
             <div>
-              <h2 className="text-2xl font-semibold mb-2">Ready to make plans?</h2>
+              <h2 className="text-2xl font-semibold mb-2">Ready to discover?</h2>
               <p className="text-muted-foreground mb-6">
-                We'll find common free time with your friends and suggest activities you'll both love
+                Get personalized activities based on your free time and preferences
               </p>
             </div>
             <Button
@@ -317,11 +256,11 @@ export default function MakePlans() {
               {isGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Finding suggestions...
+                  Finding activities...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4 mr-2" />
+                  <Sparkles className="w-4 w-4 mr-2" />
                   Generate Suggestions
                 </>
               )}
@@ -333,30 +272,44 @@ export default function MakePlans() {
             <div>
               <h2 className="text-2xl font-semibold mb-2">All done!</h2>
               <p className="text-muted-foreground mb-6">
-                You've reviewed all suggestions. Check your calendar for confirmed plans!
+                {acceptedActivities.length > 0
+                  ? `You've saved ${acceptedActivities.length} activities`
+                  : "You've reviewed all suggestions"}
               </p>
             </div>
-            <Button
-              size="lg"
-              onClick={generateSuggestions}
-              disabled={isGenerating}
-              className="w-full max-w-xs mx-auto"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Finding more...
-                </>
-              ) : (
-                "Get More Suggestions"
+            <div className="flex gap-3 justify-center flex-wrap">
+              {acceptedActivities.length >= 3 && (
+                <Button
+                  size="lg"
+                  onClick={addToCalendar}
+                  disabled={loading}
+                >
+                  <CalendarIcon className="h-5 w-5 mr-2" />
+                  Add {acceptedActivities.length} to Calendar
+                </Button>
               )}
-            </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={generateSuggestions}
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Finding more...
+                  </>
+                ) : (
+                  "Get More"
+                )}
+              </Button>
+            </div>
           </Card>
         ) : (
           <div className="relative" style={{ height: "600px" }}>
             {suggestions.slice(currentIndex, currentIndex + 3).map((suggestion, index) => (
               <div
-                key={`${suggestion.activity.id}-${suggestion.friendId}-${index}`}
+                key={`${suggestion.activity.id}-${index}`}
                 style={{
                   position: "absolute",
                   width: "100%",
@@ -368,7 +321,7 @@ export default function MakePlans() {
               >
                 <SwipeableActivityCard
                   activity={suggestion.activity}
-                  friendName={suggestion.friendEmail}
+                  friendName="You"
                   suggestedTime={suggestion.suggestedTime}
                   onSwipe={handleSwipe}
                 />
@@ -386,6 +339,7 @@ export default function MakePlans() {
               disabled={loading}
               className="w-32"
             >
+              <X className="h-5 w-5 mr-2" />
               Pass
             </Button>
             <Button
@@ -394,14 +348,21 @@ export default function MakePlans() {
               disabled={loading}
               className="w-32"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Accept"}
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                <>
+                  <Sparkles className="h-5 w-5 mr-2" />
+                  Save
+                </>
+              )}
             </Button>
           </div>
         )}
 
-        <div className="text-center mt-6 text-sm text-muted-foreground">
-          {currentIndex + 1} / {suggestions.length}
-        </div>
+        {suggestions.length > 0 && (
+          <div className="text-center mt-6 text-sm text-muted-foreground">
+            {currentIndex + 1} / {suggestions.length}
+          </div>
+        )}
       </div>
     </div>
   );
