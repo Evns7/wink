@@ -62,9 +62,10 @@ const Dashboard = () => {
   };
 
   const fetchActivities = async (lat: number, lng: number) => {
+    setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('fetch-nearby-activities', {
-        body: { lat, lng, radius: 2000 }
+        body: { lat, lng, radius: 1000 }
       });
 
       if (error) throw error;
@@ -75,8 +76,11 @@ const Dashboard = () => {
       toast({
         variant: "destructive",
         title: "Could not load activities",
-        description: "Please try again later.",
+        description: "Trying with a smaller search area. Please wait...",
       });
+      setActivities([]); // Clear activities on error
+    } finally {
+      setLoading(false);
     }
   };
 

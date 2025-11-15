@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { lat, lng, radius = 2000, category } = await req.json();
+    const { lat, lng, radius = 1000, category } = await req.json();
 
     if (!lat || !lng) {
       return new Response(
@@ -21,49 +21,65 @@ serve(async (req) => {
       );
     }
 
-    // Map our categories to Overpass API tags
-    const categoryMap: { [key: string]: string[] } = {
-      food: ['amenity=restaurant', 'amenity=cafe', 'amenity=fast_food', 'amenity=bar'],
-      shopping: ['shop', 'amenity=marketplace'],
-      sports: ['leisure=sports_centre', 'leisure=fitness_centre', 'leisure=park', 'sport'],
-      studying: ['amenity=library', 'amenity=university', 'amenity=college', 'amenity=coworking_space'],
-    };
+    // Fetch with retry and radius reduction on timeout
+    async function fetchWithRetry(searchRadius: number, attempt: number = 1): Promise<any> {
+      const categoryMap: { [key: string]: string[] } = {
+        food: ['amenity=restaurant', 'amenity=cafe', 'amenity=fast_food'],
+        shopping: ['shop=supermarket', 'shop=mall', 'amenity=marketplace'],
+        sports: ['leisure=sports_centre', 'leisure=fitness_centre', 'leisure=park'],
+        studying: ['amenity=library', 'amenity=university', 'amenity=coworking_space'],
+      };
 
-    const tags = category && categoryMap[category] 
-      ? categoryMap[category] 
-      : Object.values(categoryMap).flat();
+      const tags = category && categoryMap[category] 
+        ? categoryMap[category] 
+        : Object.values(categoryMap).flat().slice(0, 8); // Limit to 8 tags
 
-    // Build Overpass API query
-    const queries = tags.map(tag => {
-      const [key, value] = tag.includes('=') ? tag.split('=') : [tag, ''];
-      if (value) {
-        return `node[${key}=${value}](around:${radius},${lat},${lng});`;
+      const queries = tags.map(tag => {
+        const [key, value] = tag.includes('=') ? tag.split('=') : [tag, ''];
+        if (value) {
+          return `node[${key}=${value}](around:${searchRadius},${lat},${lng});`;
+        }
+        return `node[${key}](around:${searchRadius},${lat},${lng});`;
+      }).join('\n');
+
+      const overpassQuery = `
+        [out:json][timeout:15];
+        (
+          ${queries}
+        );
+        out body 100;
+      `;
+
+      console.log(`Attempt ${attempt}: Fetching from Overpass API with radius ${searchRadius}m...`);
+      
+      try {
+        const response = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(overpassQuery)}`,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return await response.json();
+      } catch (error) {
+        console.error(`Attempt ${attempt} failed:`, error);
+        
+        // Retry with smaller radius if we have attempts left
+        if (attempt < 3 && searchRadius > 500) {
+          const newRadius = Math.floor(searchRadius / 2);
+          console.log(`Retrying with smaller radius: ${newRadius}m`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s between retries
+          return fetchWithRetry(newRadius, attempt + 1);
+        }
+        
+        throw error;
       }
-      return `node[${key}](around:${radius},${lat},${lng});`;
-    }).join('\n');
-
-    const overpassQuery = `
-      [out:json][timeout:25];
-      (
-        ${queries}
-      );
-      out body;
-      >;
-      out skel qt;
-    `;
-
-    console.log('Fetching from Overpass API...');
-    const response = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `data=${encodeURIComponent(overpassQuery)}`,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Overpass API error: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await fetchWithRetry(radius);
     console.log(`Found ${data.elements?.length || 0} POIs`);
 
     // Transform and save to database
@@ -98,7 +114,7 @@ serve(async (req) => {
           osm_id: el.id,
         };
       })
-      .slice(0, 50); // Limit to 50 activities
+      .slice(0, 30); // Limit to 30 activities for better performance
 
     // Upsert activities to database
     if (activities.length > 0) {
