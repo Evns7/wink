@@ -145,19 +145,6 @@ const Index = () => {
               <span>AI-powered</span>
             </div>
           </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.2 }}
-            className="mt-20 max-w-3xl mx-auto"
-          >
-            <div className="bg-gradient-to-br from-primary/10 via-accent/5 to-background border border-primary/20 rounded-2xl p-8 backdrop-blur-sm shadow-xl">
-              <p className="text-base md:text-lg text-foreground/90 leading-relaxed">
-                Wink was born from the spirit of Movember and its message about men&apos;s mental health and the silent epidemic of loneliness. We realised that most of us want to make plans, but life, schedules and invisible barriers get in the way. Wink makes it effortless to see when friends are free, discover things you can enjoy together, and turn good intentions into real moments. It&apos;s a small push—a wink—that helps people connect more often and with less friction.
-              </p>
-            </div>
-          </motion.div>
         </div>
       </motion.div>
 
@@ -205,6 +192,42 @@ const Index = () => {
               </motion.div>
             ))}
           </div>
+        </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        transition={{ duration: 0.8 }}
+        viewport={{ once: true }}
+        className="relative z-10 py-32 px-6"
+      >
+        <div className="max-w-5xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-5xl md:text-6xl font-black mb-4">
+              Wink&apos;s <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Mission</span>
+            </h2>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            viewport={{ once: true }}
+            className="max-w-3xl mx-auto"
+          >
+            <div className="bg-gradient-to-br from-primary/10 via-accent/5 to-background border border-primary/20 rounded-2xl p-8 backdrop-blur-sm shadow-xl">
+              <p className="text-base md:text-lg text-foreground/90 leading-relaxed">
+                Wink was born from the spirit of Movember and its message about men&apos;s mental health and the silent epidemic of loneliness. We realised that most of us want to make plans, but life, schedules and invisible barriers get in the way. Wink makes it effortless to see when friends are free, discover things you can enjoy together, and turn good intentions into real moments. It&apos;s a small push—a wink—that helps people connect more often and with less friction.
+              </p>
+            </div>
+          </motion.div>
         </div>
       </motion.div>
 
