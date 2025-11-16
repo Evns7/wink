@@ -203,19 +203,6 @@ serve(async (req) => {
         totalScore = Math.min(100, totalScore + 3);
       }
 
-      // Apply penalty for bar-related activities to reduce their frequency
-      const isBarRelated = 
-        nameLower.includes('bar') || 
-        nameLower.includes('pub') || 
-        nameLower.includes('cocktail') ||
-        categoryLower.includes('bar') || 
-        categoryLower.includes('pub') || 
-        categoryLower.includes('nightlife');
-      
-      if (isBarRelated) {
-        totalScore = Math.max(0, totalScore - 20); // Significant penalty for bars
-      }
-
       return {
         ...activity,
         matchScore: Math.round(totalScore),
@@ -244,7 +231,36 @@ serve(async (req) => {
       self.findIndex(t => t.id === activity.id) === index
     );
 
-    const topActivities = uniqueActivities.slice(0, 10);
+    // Category balancing: ensure diversity across categories
+    const categorizeActivity = (activity: any) => {
+      const name = (activity.name || '').toLowerCase();
+      const category = (activity.category || '').toLowerCase();
+      
+      if (name.includes('bar') || name.includes('pub') || category.includes('bar') || category.includes('pub')) return 'bars';
+      if (name.includes('restaurant') || name.includes('dining') || category.includes('restaurant') || category.includes('food')) return 'restaurants';
+      if (name.includes('museum') || category.includes('museum')) return 'museums';
+      if (name.includes('gallery') || category.includes('gallery') || category.includes('art')) return 'galleries';
+      if (name.includes('park') || name.includes('garden') || name.includes('outdoor') || category.includes('outdoor') || category.includes('park')) return 'outdoor';
+      return 'other';
+    };
+
+    // Balance selection: max 2 per category
+    const categoryLimits = { bars: 2, restaurants: 2, museums: 2, galleries: 2, outdoor: 2, other: 2 };
+    const categoryCounts: Record<string, number> = {};
+    
+    const balancedActivities = uniqueActivities.filter((activity: any) => {
+      const activityCategory = categorizeActivity(activity);
+      const currentCount = categoryCounts[activityCategory] || 0;
+      const limit = categoryLimits[activityCategory] || 2;
+      
+      if (currentCount < limit) {
+        categoryCounts[activityCategory] = currentCount + 1;
+        return true;
+      }
+      return false;
+    });
+
+    const topActivities = balancedActivities.slice(0, 10);
 
     return new Response(
       JSON.stringify({

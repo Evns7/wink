@@ -78,15 +78,18 @@ serve(async (req) => {
 SPEED RULES:
 - Keep responses SHORT and STRUCTURED
 - NO long descriptions or paragraphs
-- Return ONLY 10 activities maximum
+- Return ONLY 15 activities maximum
 - Use shallow data - no deep scraping
 - Skip activities with missing coordinates or prices
 
-FOCUS: Unique experiences (pop-ups, immersive dining, art galleries, museums, escape rooms, markets, rooftop venues, cultural events, live music, theater)
+CATEGORY BALANCE - Include roughly equal amounts from each:
+1. Bars/Pubs (2-3 activities)
+2. Restaurants/Dining (2-3 activities)
+3. Museums (2-3 activities)
+4. Art Galleries (2-3 activities)
+5. Outdoor Activities/Parks (2-3 activities)
 
-LIMIT: Include maximum 1-2 bars/pubs in results - prioritize other activity types
-
-EXCLUDE: Hotels, chains, tourist traps, generic parks, unknowns, excessive bars
+EXCLUDE: Hotels, chains, tourist traps, unknowns
 
 SCORING (fast formula, 0-100):
 - uniqueness_score (0-35): How special
@@ -96,15 +99,20 @@ SCORING (fast formula, 0-100):
 - proximity_score (0-10): Distance convenience
 Total MUST = match_percentage (0-100)`;
 
-    const userPrompt = `Find 10 unique London experiences near ${lat}, ${lng} (${radius}km radius).
+    const userPrompt = `Find 15 diverse London activities near ${lat}, ${lng} (${radius}km radius).
 
 Context:
 - Location: ${lat}, ${lng} (calculate ALL distances from here)
 - Time: ${currentDate}, ${currentTime}
 - Budget: £${budget} max
-- Interests: ${userPreferences.length > 0 ? userPreferences.join(', ') : 'unique experiences'}
+- Interests: ${userPreferences.length > 0 ? userPreferences.join(', ') : 'diverse experiences'}
 
-Priority: Museums, art galleries, immersive dining, pop-ups, cultural events, escape rooms, rooftop venues, markets, live music, theater. LIMIT bars/pubs to 1-2 maximum.
+BALANCE REQUIREMENT: Include 2-3 from EACH category:
+- Bars/Pubs (cocktail bars, craft beer, wine bars, pubs)
+- Restaurants (fine dining, casual, cuisines, pop-ups)
+- Museums (art, history, science, niche museums)
+- Art Galleries (contemporary, classic, exhibitions)
+- Outdoor Activities (parks, gardens, outdoor markets, walking tours, viewpoints)
 
 Requirements per activity:
 - Name (short, catchy)
