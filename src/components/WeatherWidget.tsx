@@ -2,12 +2,22 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Cloud, Sun, CloudRain, Wind, Droplets, MapPin, Loader2, AlertCircle } from "lucide-react";
-import { weatherService, CurrentWeather, ForecastDay } from "@/services/weatherService";
+import { weatherService, CurrentWeather } from "@/services/weatherService";
 import { motion } from "framer-motion";
+
+interface HourlyForecast {
+  time: string;
+  temp_c: number;
+  temp_f: number;
+  condition: {
+    text: string;
+    icon: string;
+  };
+}
 
 const WeatherWidget = () => {
   const [weather, setWeather] = useState<CurrentWeather | null>(null);
-  const [forecast, setForecast] = useState<ForecastDay[]>([]);
+  const [hourlyForecast, setHourlyForecast] = useState<HourlyForecast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [useCelsius, setUseCelsius] = useState(true);
@@ -25,9 +35,22 @@ const WeatherWidget = () => {
       const weatherData = await weatherService.getWeatherForUserLocation();
       setWeather(weatherData);
       
-      // Load forecast
-      const forecastData = await weatherService.getForecastForUserLocation(3);
-      setForecast(forecastData.forecast.forecastday);
+      // Load today's forecast
+      const forecastData = await weatherService.getForecastForUserLocation(1);
+      const todayForecast = forecastData.forecast.forecastday[0];
+      
+      // Get current hour
+      const currentHour = new Date().getHours();
+      
+      // Filter hourly data to show remaining hours of today (next 8 hours or until end of day)
+      const remainingHours = todayForecast.hour
+        .filter((hour: any) => {
+          const hourTime = new Date(hour.time).getHours();
+          return hourTime >= currentHour;
+        })
+        .slice(0, 8);
+      
+      setHourlyForecast(remainingHours);
     } catch (err) {
       console.error('Weather error:', err);
       
@@ -36,8 +59,18 @@ const WeatherWidget = () => {
         const weatherData = await weatherService.getCurrentWeatherByCity('London');
         setWeather(weatherData);
         
-        const forecastData = await weatherService.getForecastByCity('London', 3);
-        setForecast(forecastData.forecast.forecastday);
+        const forecastData = await weatherService.getForecastByCity('London', 1);
+        const todayForecast = forecastData.forecast.forecastday[0];
+        const currentHour = new Date().getHours();
+        
+        const remainingHours = todayForecast.hour
+          .filter((hour: any) => {
+            const hourTime = new Date(hour.time).getHours();
+            return hourTime >= currentHour;
+          })
+          .slice(0, 8);
+        
+        setHourlyForecast(remainingHours);
       } catch (fallbackErr) {
         setError('Unable to load weather data. Please try again later.');
       }
@@ -201,40 +234,50 @@ const WeatherWidget = () => {
           </p>
         </motion.div>
 
-        {/* 3-Day Forecast */}
-        {forecast.length > 0 && (
+        {/* Today's Hourly Forecast */}
+        {hourlyForecast.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3, delay: 0.2 }}
-            className="space-y-2"
+            className="space-y-3"
           >
-            <h4 className="text-sm font-semibold text-muted-foreground">3-Day Forecast</h4>
-            <div className="grid grid-cols-3 gap-2">
-              {forecast.map((day, index) => {
-                const date = new Date(day.date);
-                const dayName = index === 0 ? 'Today' : date.toLocaleDateString('en-US', { weekday: 'short' });
-                const maxTemp = useCelsius ? day.day.maxtemp_c : day.day.maxtemp_f;
-                const minTemp = useCelsius ? day.day.mintemp_c : day.day.mintemp_f;
+            <h4 className="text-sm font-semibold text-muted-foreground">Today's Forecast</h4>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {hourlyForecast.map((hour, index) => {
+                const hourTime = new Date(hour.time);
+                const timeString = hourTime.toLocaleTimeString('en-US', { 
+                  hour: 'numeric',
+                  hour12: true 
+                });
                 
                 return (
-                  <div
-                    key={day.date}
-                    className="flex flex-col items-center p-3 rounded-xl bg-card/50 border border-border/50"
+                  <motion.div
+                    key={hour.time}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="glass p-3 rounded-lg text-center min-w-[80px] flex-shrink-0"
                   >
-                    <p className="text-xs font-medium">{dayName}</p>
-                    <img 
-                      src={`https:${day.day.condition.icon}`} 
-                      alt={day.day.condition.text}
-                      className="w-8 h-8 my-1"
-                    />
-                    <p className="text-sm font-semibold">
-                      {Math.round(maxTemp)}° / {Math.round(minTemp)}°
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      {timeString}
                     </p>
-                    <p className="text-xs text-muted-foreground text-center mt-1">
-                      {day.day.condition.text}
-                    </p>
-                  </div>
+                    <div className="flex justify-center mb-2">
+                      <img 
+                        src={hour.condition.icon} 
+                        alt={hour.condition.text}
+                        className="w-8 h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold">
+                        {useCelsius ? Math.round(hour.temp_c) : Math.round(hour.temp_f)}°
+                      </p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {hour.condition.text}
+                      </p>
+                    </div>
+                  </motion.div>
                 );
               })}
             </div>

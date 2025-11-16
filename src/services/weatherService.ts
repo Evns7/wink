@@ -26,6 +26,23 @@ export interface CurrentWeather {
   };
 }
 
+export interface HourlyForecast {
+  time: string;
+  time_epoch: number;
+  temp_c: number;
+  temp_f: number;
+  condition: {
+    text: string;
+    icon: string;
+    code: number;
+  };
+  wind_mph: number;
+  wind_kph: number;
+  humidity: number;
+  feelslike_c: number;
+  feelslike_f: number;
+}
+
 export interface ForecastDay {
   date: string;
   day: {
@@ -43,6 +60,7 @@ export interface ForecastDay {
     daily_chance_of_rain: number;
     daily_chance_of_snow: number;
   };
+  hour: HourlyForecast[];
 }
 
 export interface ForecastWeather extends CurrentWeather {
