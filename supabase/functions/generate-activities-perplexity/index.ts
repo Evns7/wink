@@ -89,7 +89,7 @@ CATEGORY BALANCE - Include roughly equal amounts from each:
 4. Art Galleries (2-3 activities)
 5. Outdoor Activities/Parks (2-3 activities)
 
-EXCLUDE: Hotels, chains, tourist traps, unknowns
+EXCLUDE: Hotels, chains, tourist traps, unknowns, live events, concerts, shows, ticketed time-sensitive events
 
 SCORING (fast formula, 0-100):
 - uniqueness_score (0-35): How special
@@ -113,6 +113,8 @@ BALANCE REQUIREMENT: Include 2-3 from EACH category:
 - Museums (art, history, science, niche museums)
 - Art Galleries (contemporary, classic, exhibitions)
 - Outdoor Activities (parks, gardens, outdoor markets, walking tours, viewpoints)
+
+EXCLUDE: Live concerts, shows, ticketed events, time-sensitive events. Focus ONLY on regular venues and always-available activities.
 
 Requirements per activity:
 - Name (short, catchy)

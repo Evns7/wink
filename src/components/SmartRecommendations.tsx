@@ -119,21 +119,69 @@ export const SmartRecommendations = () => {
   const getRecommendations = async (block: any) => {
     setLoading(true);
     try {
-      const weather = { temp: 20, isRaining: false };
+      // Get user's location from profile for live events
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('home_lat, home_lng, home_address')
+        .single();
 
-      const { data, error } = await supabase.functions.invoke('smart-activity-recommendations', {
-        body: { freeBlock: block, friendIds: [], weather, refresh: true }
+      if (!profile?.home_lat || !profile?.home_lng) {
+        toast({
+          title: 'Location Required',
+          description: 'Please set your location in settings first',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Use scrape-live-events to get real time-sensitive events
+      const { data, error } = await supabase.functions.invoke('scrape-live-events', {
+        body: {
+          location: profile.home_address || `${profile.home_lat},${profile.home_lng}`,
+          radius: 25,
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        }
       });
 
       if (error) throw error;
       
-      console.log('Received live recommendations:', data);
-      setRecommendations(data.recommendations || []);
+      // Transform events to match Activity interface
+      const transformedEvents = (data.events || []).map((event: any) => ({
+        id: event.id || `event-${Math.random()}`,
+        name: event.title || event.name,
+        description: event.description || '',
+        category: event.category || 'Event',
+        matchScore: 75, // Default score for events
+        matchFactors: {
+          preference: 20,
+          time_fit: 15,
+          weather: 10,
+          budget: 15,
+          proximity: 15,
+        },
+        travelTimeMinutes: 30,
+        distance: 5,
+        isPerfectMatch: false,
+        address: event.location,
+        location: event.location,
+        price: event.price,
+        priceRange: event.price,
+        date: event.date,
+        time: event.time,
+        url: event.url,
+        link: event.url,
+        source: 'live-event',
+        popularity: event.popularity || 'medium',
+      }));
+
+      console.log('Received live event recommendations:', transformedEvents);
+      setRecommendations(transformedEvents);
     } catch (error) {
-      console.error('Error getting recommendations:', error);
+      console.error('Error getting live event recommendations:', error);
       toast({
         variant: "destructive",
-        title: "Failed to load recommendations",
+        title: "Failed to load live events",
         description: "Please try again later.",
       });
     } finally {
