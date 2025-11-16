@@ -58,34 +58,40 @@ export const NearbyActivities = () => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('smart-activity-recommendations', {
-        body: {},
+      // Call generate-activities-perplexity directly for regular nearby activities
+      const { data, error } = await supabase.functions.invoke('generate-activities-perplexity', {
+        body: {
+          lat: profile.home_lat,
+          lng: profile.home_lng,
+          radius: 5,
+          preferences: [],
+        },
       });
 
       if (error) throw error;
 
-      // Transform recommendations to match Activity interface
-      const transformedActivities = (data.recommendations || []).map((rec: any) => ({
+      // Transform Perplexity activities to match Activity interface
+      const transformedActivities = (data.activities || []).map((rec: any) => ({
         id: rec.id,
         name: rec.name,
-        description: rec.description || rec.reason || '',
+        description: rec.description || '',
         category: rec.category,
-        location: rec.address || rec.location || '',
+        location: rec.address || '',
         lat: rec.lat,
         lng: rec.lng,
-        distance: rec.distance || rec.distance_km || 0,
+        distance: rec.distance_km || 0,
         travelTime: rec.travel_time_minutes || 15,
         price: rec.price || `£${rec.price_level * 10 || 0}`,
         priceLevel: rec.price_level || 1,
         rating: rec.rating || 4.0,
-        matchScore: rec.match_score || rec.total_score || 50,
-        matchFactors: rec.score_breakdown || {
+        matchScore: rec.match_percentage || 50,
+        matchFactors: {
           preference: 5,
           distance: 5,
           rating: 5,
         },
-        imageUrl: rec.image_url || null,
-        source: rec.source || 'perplexity',
+        imageUrl: rec.thumbnail || null,
+        source: 'perplexity',
       }));
 
       setActivities(transformedActivities);
