@@ -82,9 +82,11 @@ SPEED RULES:
 - Use shallow data - no deep scraping
 - Skip activities with missing coordinates or prices
 
-FOCUS: Unique experiences (pop-ups, hidden bars, immersive dining, art, escape rooms, markets, rooftop venues)
+FOCUS: Unique experiences (pop-ups, immersive dining, art galleries, museums, escape rooms, markets, rooftop venues, cultural events, live music, theater)
 
-EXCLUDE: Hotels, chains, tourist traps, generic parks, unknowns
+LIMIT: Include maximum 1-2 bars/pubs in results - prioritize other activity types
+
+EXCLUDE: Hotels, chains, tourist traps, generic parks, unknowns, excessive bars
 
 SCORING (fast formula, 0-100):
 - uniqueness_score (0-35): How special
@@ -102,7 +104,7 @@ Context:
 - Budget: £${budget} max
 - Interests: ${userPreferences.length > 0 ? userPreferences.join(', ') : 'unique experiences'}
 
-Priority: Pop-ups, hidden bars, immersive dining, art, escape rooms, rooftop venues, markets
+Priority: Museums, art galleries, immersive dining, pop-ups, cultural events, escape rooms, rooftop venues, markets, live music, theater. LIMIT bars/pubs to 1-2 maximum.
 
 Requirements per activity:
 - Name (short, catchy)
