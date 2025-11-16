@@ -192,6 +192,7 @@ serve(async (req) => {
       let totalScore = Math.min(100, Math.max(0, componentSum || activity.match_percentage || 50));
       
       const categoryLower = activity.category?.toLowerCase() || '';
+      const nameLower = activity.name?.toLowerCase() || '';
       
       // Apply small boosts but keep within 0-100
       if (selectedHobbies.some((h: string) => categoryLower.includes(h.toLowerCase()))) {
@@ -200,6 +201,19 @@ serve(async (req) => {
       
       if (likedCategories.includes(categoryLower)) {
         totalScore = Math.min(100, totalScore + 3);
+      }
+
+      // Apply penalty for bar-related activities to reduce their frequency
+      const isBarRelated = 
+        nameLower.includes('bar') || 
+        nameLower.includes('pub') || 
+        nameLower.includes('cocktail') ||
+        categoryLower.includes('bar') || 
+        categoryLower.includes('pub') || 
+        categoryLower.includes('nightlife');
+      
+      if (isBarRelated) {
+        totalScore = Math.max(0, totalScore - 20); // Significant penalty for bars
       }
 
       return {
